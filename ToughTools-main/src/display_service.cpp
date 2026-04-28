@@ -34,6 +34,10 @@ namespace
     constexpr int CONTENT_Y = 40;
     constexpr int CONTENT_W = 296;
     constexpr int CONTENT_H = 172;
+    constexpr int LIVE_TEMP_VALUE_X = 152;
+    constexpr int LIVE_TEMP_VALUE_Y = 162;
+    constexpr int LIVE_TEMP_VALUE_W = CONTENT_X + CONTENT_W - LIVE_TEMP_VALUE_X - 12;
+    constexpr int LIVE_TEMP_VALUE_H = 20;
     constexpr int LIVE_TIME_Y = 214;
     constexpr int LIVE_WARNING_Y = 230;
     constexpr int LAST_LOG_BOX_X = 210;
@@ -248,6 +252,22 @@ namespace
         }
     }
 
+    void draw_live_temperature_value(float temp, bool valid)
+    {
+        M5.Display.fillRect(LIVE_TEMP_VALUE_X, LIVE_TEMP_VALUE_Y, LIVE_TEMP_VALUE_W, LIVE_TEMP_VALUE_H, COLOR_PANEL);
+        M5.Display.setTextColor(COLOR_DATA, COLOR_PANEL);
+        M5.Display.setTextSize(2);
+        M5.Display.setCursor(LIVE_TEMP_VALUE_X, LIVE_TEMP_VALUE_Y);
+        if (valid)
+        {
+            M5.Display.printf("%.1f C", temp);
+        }
+        else
+        {
+            M5.Display.print("--.- C");
+        }
+    }
+
     void draw_boot_test_page()
     {
         M5.Display.fillScreen(0x07E0);
@@ -336,19 +356,7 @@ namespace
 
         if (temperature_changed)
         {
-            // Temperature width can vary by value, so clear only this small box on change.
-            M5.Display.fillRect(152, 162, 112, 18, COLOR_PANEL);
-            M5.Display.setTextColor(COLOR_DATA, COLOR_PANEL);
-            M5.Display.setTextSize(2);
-            M5.Display.setCursor(152, 162);
-            if (app_state.temperature_valid)
-            {
-                M5.Display.printf("%.1f C", app_state.current_temperature);
-            }
-            else
-            {
-                M5.Display.print("--.- C");
-            }
+            draw_live_temperature_value(app_state.current_temperature, app_state.temperature_valid);
         }
 
         M5.Display.setTextColor(COLOR_TEXT_MUTED, COLOR_BG);
@@ -629,7 +637,7 @@ namespace
         }
 
         M5.Display.setCursor(18, 148);
-        M5.Display.print("Warte auf >70C oder eingestellten Wert");
+        M5.Display.printf("Warte auf > %.1f C", app_state.set_temperature_threshold);
     }
 }
 
@@ -863,18 +871,7 @@ void DisplayService::render_temperature(float temp, bool valid)
     M5.Display.setCursor(26, 164);
     M5.Display.print("Temperature:");
 
-    M5.Display.setTextColor(COLOR_DATA, COLOR_PANEL);
-    M5.Display.setTextSize(2);
-    M5.Display.setCursor(152, 162);
-
-    if (valid)
-    {
-        M5.Display.printf("%.1f C", temp);
-    }
-    else
-    {
-        M5.Display.print("--.- C");
-    }
+    draw_live_temperature_value(temp, valid);
 }
 
 void DisplayService::render_status(const AppState &app_state)
