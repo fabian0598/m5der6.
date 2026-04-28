@@ -65,12 +65,16 @@ private:
     unsigned long event_log_entries_in_file = 0;
 
     bool prepare_log_directories();
+    bool prepare_log_directories_locked();
     bool ensure_log_file(bool for_time_log);
+    bool ensure_log_file_locked(bool for_time_log);
+    void start_session_locked(time_t session_start_time);
     void rotate_time_log_file();
     void rotate_event_log_file();
     void try_recover_sd();
     void note_sd_success();
     void note_sd_failure(const char *context);
+    void note_sd_failure_locked(const char *context);
 
     /**
      * Helper: Format timestamp into a readable string.

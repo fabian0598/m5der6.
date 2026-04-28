@@ -42,9 +42,8 @@ namespace
         }
     }
 
-    bool mount_sd_with_fallback_clock(const char *tag)
+    bool mount_sd_with_fallback_clock_locked(const char *tag)
     {
-        SpiBusLock bus_lock(SpiBusOwner::Sd);
         ensure_sd_spi_active();
         Serial.printf("[%s] SD.begin(CS=%d) - using SD SPI bus...\n", tag, SD_CARD_CS_PIN);
 
@@ -86,6 +85,12 @@ namespace
         }
 
         return false;
+    }
+
+    bool mount_sd_with_fallback_clock(const char *tag)
+    {
+        SpiBusLock bus_lock(SpiBusOwner::Sd);
+        return mount_sd_with_fallback_clock_locked(tag);
     }
 
     void print_sd_debug_info(const char *tag)
@@ -160,7 +165,11 @@ void Logger::note_sd_success()
 void Logger::note_sd_failure(const char *context)
 {
     SpiBusLock bus_lock(SpiBusOwner::Sd);
+    note_sd_failure_locked(context);
+}
 
+void Logger::note_sd_failure_locked(const char *context)
+{
     if (consecutive_sd_failures < 255)
     {
         consecutive_sd_failures++;
@@ -198,8 +207,8 @@ void Logger::note_sd_failure(const char *context)
             sd_reinit_in_progress = true;
 
             Serial.println("[Logger] SD card present but IO failing -> attempting in-place SD reinit");
-            const bool remounted = mount_sd_with_fallback_clock("Logger-Reinit");
-            const bool dirs_ok = remounted && prepare_log_directories();
+            const bool remounted = mount_sd_with_fallback_clock_locked("Logger-Reinit");
+            const bool dirs_ok = remounted && prepare_log_directories_locked();
 
             if (remounted && dirs_ok)
             {
@@ -207,7 +216,7 @@ void Logger::note_sd_failure(const char *context)
                 Serial.println("[Logger] SD in-place reinit successful");
                 if (session_tag[0] == '\0')
                 {
-                    start_session(time(nullptr));
+                    start_session_locked(time(nullptr));
                 }
             }
             else
@@ -224,6 +233,11 @@ void Logger::note_sd_failure(const char *context)
 bool Logger::prepare_log_directories()
 {
     SpiBusLock bus_lock(SpiBusOwner::Sd);
+    return prepare_log_directories_locked();
+}
+
+bool Logger::prepare_log_directories_locked()
+{
     ensure_sd_spi_active();
     constexpr const char *LOG_ROOT_DIR_PATH = "/logs";
 
@@ -250,8 +264,6 @@ bool Logger::prepare_log_directories()
 
 void Logger::try_recover_sd()
 {
-    SpiBusLock bus_lock(SpiBusOwner::Sd);
-
     if (sd_ready)
     {
         return;
@@ -265,16 +277,21 @@ void Logger::try_recover_sd()
     }
     last_sd_recovery_attempt_ms = now;
 
+    sd_reinit_in_progress = true;
+    SpiBusLock bus_lock(SpiBusOwner::Sd);
+
     Serial.println("[Logger] SD recovery attempt...");
-    if (!mount_sd_with_fallback_clock("Logger-Recover"))
+    if (!mount_sd_with_fallback_clock_locked("Logger-Recover"))
     {
         Serial.println("[Logger] SD recovery failed, staying in SERIAL_ONLY");
+        sd_reinit_in_progress = false;
         return;
     }
 
-    if (!prepare_log_directories())
+    if (!prepare_log_directories_locked())
     {
         Serial.println("[Logger] SD recovery mount ok, but directory prep failed");
+        sd_reinit_in_progress = false;
         return;
     }
 
@@ -286,8 +303,10 @@ void Logger::try_recover_sd()
     if (session_tag[0] == '\0')
     {
         time_t now_ts = time(nullptr);
-        start_session(now_ts);
+        start_session_locked(now_ts);
     }
+
+    sd_reinit_in_progress = false;
 }
 
 void Logger::rotate_time_log_file()
@@ -319,6 +338,11 @@ void Logger::rotate_event_log_file()
 bool Logger::ensure_log_file(bool for_time_log)
 {
     SpiBusLock bus_lock(SpiBusOwner::Sd);
+    return ensure_log_file_locked(for_time_log);
+}
+
+bool Logger::ensure_log_file_locked(bool for_time_log)
+{
     ensure_sd_spi_active();
     const char *path = for_time_log ? current_time_log_path : current_event_log_path;
     const char *header = for_time_log ? "timestamp,temperature,time_id" : "timestamp,event,elapsed,temperature,event_id";
@@ -338,7 +362,7 @@ bool Logger::ensure_log_file(bool for_time_log)
     if (!file)
     {
         Serial.printf("[Logger] Failed to create file: %s\n", path);
-        note_sd_failure("create-file");
+        note_sd_failure_locked("create-file");
         return false;
     }
 
@@ -386,6 +410,12 @@ void Logger::start_session(time_t session_start_time)
         return;
     }
 
+    SpiBusLock bus_lock(SpiBusOwner::Sd);
+    start_session_locked(session_start_time);
+}
+
+void Logger::start_session_locked(time_t session_start_time)
+{
     tm *timeinfo = localtime(&session_start_time);
     if (timeinfo != nullptr)
     {
@@ -401,9 +431,9 @@ void Logger::start_session(time_t session_start_time)
     rotate_time_log_file();
     rotate_event_log_file();
 
-    if (!ensure_log_file(true) || !ensure_log_file(false))
+    if (!ensure_log_file_locked(true) || !ensure_log_file_locked(false))
     {
-        note_sd_failure("start-session-create");
+        note_sd_failure_locked("start-session-create");
     }
 }
 
@@ -435,7 +465,7 @@ void Logger::log_time_sample(time_t timestamp, float temperature, unsigned long 
         rotate_time_log_file();
     }
 
-    if (!ensure_log_file(true))
+    if (!ensure_log_file_locked(true))
     {
         sd_io_in_progress = false;
         sensor_poll_block_until_ms = millis() + SENSOR_POLL_DEFER_AFTER_SD_WRITE_MS;
@@ -455,7 +485,7 @@ void Logger::log_time_sample(time_t timestamp, float temperature, unsigned long 
     else
     {
         Serial.printf("[Logger] Failed to open time log file: %s\n", current_time_log_path);
-        note_sd_failure("open-time-log");
+        note_sd_failure_locked("open-time-log");
     }
 
     sd_io_in_progress = false;
@@ -501,7 +531,7 @@ void Logger::log_event(time_t timestamp, const char *event_name, unsigned long e
         rotate_event_log_file();
     }
 
-    if (!ensure_log_file(false))
+    if (!ensure_log_file_locked(false))
     {
         sd_io_in_progress = false;
         sensor_poll_block_until_ms = millis() + SENSOR_POLL_DEFER_AFTER_SD_WRITE_MS;
@@ -528,7 +558,7 @@ void Logger::log_event(time_t timestamp, const char *event_name, unsigned long e
     else
     {
         Serial.printf("[Logger] Failed to open event log file: %s\n", current_event_log_path);
-        note_sd_failure("open-event-log");
+        note_sd_failure_locked("open-event-log");
     }
 
     sd_io_in_progress = false;
