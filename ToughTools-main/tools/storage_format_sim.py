@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+import shutil
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
 
+TIME_LOG_DIR = Path("logs/time")
+EVENT_LOG_DIR = Path("logs/event")
 TIME_LOG_HEADER = ["timestamp", "temperature", "time_id"]
 EVENT_LOG_HEADER = ["timestamp", "event", "elapsed", "temperature", "event_id"]
 SETTINGS_LINE = "{hours},{minutes},{seconds},{threshold:.1f}\n"
@@ -58,6 +61,7 @@ def format_elapsed(total_seconds: int) -> str:
 
 
 def write_time_log(path: Path, samples: list[TimeLogSample]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(TIME_LOG_HEADER)
@@ -70,6 +74,7 @@ def write_time_log(path: Path, samples: list[TimeLogSample]) -> None:
 
 
 def write_event_log(path: Path, samples: list[EventLogSample]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(EVENT_LOG_HEADER)
@@ -84,6 +89,7 @@ def write_event_log(path: Path, samples: list[EventLogSample]) -> None:
 
 
 def write_settings(path: Path, settings: Settings) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         SETTINGS_LINE.format(
             hours=settings.hours,
@@ -109,7 +115,7 @@ def build_samples(start_time: datetime, count: int, interval_minutes: int) -> li
 def build_event_samples(start_time: datetime) -> list[EventLogSample]:
     return [
         EventLogSample(start_time, "BOOT", 0, 0.0, 1),
-        EventLogSample(start_time + timedelta(minutes=45, seconds=12), "TEMP_BELOW_70", 900, 69.6, 2),
+        EventLogSample(start_time + timedelta(minutes=45, seconds=12), "TEMP_BELOW_THRESHOLD", 900, 69.6, 2),
         EventLogSample(start_time + timedelta(minutes=45, seconds=32), "TIMER_EXPIRED", 3600, 69.6, 3),
         EventLogSample(start_time + timedelta(minutes=45, seconds=52), "TIMER_RESTART", 20, 71.1, 4),
     ]
@@ -124,25 +130,27 @@ def main() -> int:
     args = parser.parse_args()
 
     output_dir = Path(args.out)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     if args.reset:
-        for file_name in ("time_log.csv", "event_log.csv", "settings.csv"):
-            file_path = output_dir / file_name
-            if file_path.exists():
-                file_path.unlink()
+        shutil.rmtree(output_dir, ignore_errors=True)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     start_time = datetime.now().replace(microsecond=0)
+    session_tag = start_time.strftime("%Y%m%d_%H%M%S")
     time_samples = build_samples(start_time, max(args.samples, 1), max(args.interval_minutes, 1))
     event_samples = build_event_samples(start_time)
 
-    write_time_log(output_dir / "time_log.csv", time_samples)
-    write_event_log(output_dir / "event_log.csv", event_samples)
+    time_path = output_dir / TIME_LOG_DIR / f"time_{session_tag}_001.csv"
+    event_path = output_dir / EVENT_LOG_DIR / f"event_{session_tag}_001.csv"
+
+    write_time_log(time_path, time_samples)
+    write_event_log(event_path, event_samples)
     write_settings(output_dir / "settings.csv", DEFAULT_SETTINGS)
 
     print(f"Wrote local storage simulation files to: {output_dir.resolve()}")
-    print("- time_log.csv")
-    print("- event_log.csv")
+    print(f"- {time_path.relative_to(output_dir)}")
+    print(f"- {event_path.relative_to(output_dir)}")
     print("- settings.csv")
     return 0
 
