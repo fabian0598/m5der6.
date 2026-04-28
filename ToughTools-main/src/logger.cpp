@@ -48,6 +48,17 @@ namespace
         return "INFO";
     }
 
+    void format_temperature_field(char *buffer, size_t buffer_size, float temperature, bool temperature_valid, const char *invalid_text)
+    {
+        if (temperature_valid)
+        {
+            snprintf(buffer, buffer_size, "%.1f", temperature);
+            return;
+        }
+
+        snprintf(buffer, buffer_size, "%s", invalid_text);
+    }
+
     const char *sd_card_type_to_string(uint8_t card_type)
     {
         switch (card_type)
@@ -513,7 +524,7 @@ void Logger::log_time_sample(time_t timestamp, float temperature, unsigned long 
     sensor_poll_block_until_ms = millis() + SENSOR_POLL_DEFER_AFTER_SD_WRITE_MS;
 }
 
-void Logger::log_event(time_t timestamp, const char *event_name, unsigned long elapsed_seconds, float temperature, unsigned long event_id, LogLevel level)
+void Logger::log_event(time_t timestamp, const char *event_name, unsigned long elapsed_seconds, float temperature, bool temperature_valid, unsigned long event_id, LogLevel level)
 {
     if (!LOGGING_ENABLED)
     {
@@ -526,10 +537,12 @@ void Logger::log_event(time_t timestamp, const char *event_name, unsigned long e
     const unsigned long seconds = elapsed_seconds % 60UL;
     const bool write_to_sd = should_emit_level(level, SD_EVENT_LOG_MIN_LEVEL);
     const char *target_path = (write_to_sd && sd_ready && current_event_log_path[0] != '\0') ? current_event_log_path : "SCREEN_ONLY";
+    char serial_temperature[12];
+    format_temperature_field(serial_temperature, sizeof(serial_temperature), temperature, temperature_valid, "n/a");
 
     if (should_emit_level(level, SERIAL_LOG_MIN_LEVEL))
     {
-        Serial.printf("[EventLog][%s][%s] %s,%s,%02lu:%02lu:%02lu,%.1f,%lu\n",
+        Serial.printf("[EventLog][%s][%s] %s,%s,%02lu:%02lu:%02lu,%s,%lu\n",
                       target_path,
                       log_level_to_string(level),
                       time_str,
@@ -537,7 +550,7 @@ void Logger::log_event(time_t timestamp, const char *event_name, unsigned long e
                       hours,
                       minutes,
                       seconds,
-                      temperature,
+                      serial_temperature,
                       event_id);
     }
 
@@ -573,13 +586,15 @@ void Logger::log_event(time_t timestamp, const char *event_name, unsigned long e
     File log_file = SD.open(current_event_log_path, FILE_APPEND);
     if (log_file)
     {
-        log_file.printf("%s,%s,%02lu:%02lu:%02lu,%.1f,%lu\n",
+        char sd_temperature[12];
+        format_temperature_field(sd_temperature, sizeof(sd_temperature), temperature, temperature_valid, "");
+        log_file.printf("%s,%s,%02lu:%02lu:%02lu,%s,%lu\n",
                         time_str,
                         event_name,
                         hours,
                         minutes,
                         seconds,
-                        temperature,
+                        sd_temperature,
                         event_id);
         log_file.flush();
         log_file.close();
