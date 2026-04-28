@@ -11,7 +11,16 @@ namespace
 
     const char *owner_to_string(SpiBusOwner owner)
     {
-        return owner == SpiBusOwner::Sd ? "SD" : "MAX31865";
+        switch (owner)
+        {
+        case SpiBusOwner::Sd:
+            return "SD";
+        case SpiBusOwner::Max:
+            return "MAX31865";
+        case SpiBusOwner::Display:
+            return "DISPLAY";
+        }
+        return "UNKNOWN";
     }
 
     void ensure_mutex_created()
@@ -66,9 +75,13 @@ SpiBusLock::SpiBusLock(SpiBusOwner owner_in) : owner(owner_in)
     {
         prepare_sd_bus_locked();
     }
-    else
+    else if (owner == SpiBusOwner::Max)
     {
         prepare_max_bus_locked();
+    }
+    else
+    {
+        set_all_chip_selects_high();
     }
 }
 

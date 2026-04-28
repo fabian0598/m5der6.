@@ -5,7 +5,8 @@
 enum class SpiBusOwner : uint8_t
 {
     Sd,
-    Max
+    Max,
+    Display
 };
 
 class SpiBusLock

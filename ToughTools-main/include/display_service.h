@@ -20,6 +20,11 @@ public:
      */
     void update(AppState &app_state);
 
+    /**
+     * Update the live-view LAST LOG box with the newest logged temperature.
+     */
+    void updateDisplay(float temp);
+
 private:
     /**
      * Helper: Format and display the current time.

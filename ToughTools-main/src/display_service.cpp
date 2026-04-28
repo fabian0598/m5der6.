@@ -1,8 +1,10 @@
 #include "display_service.h"
 #include "config.h"
+#include "spi_bus_lock.h"
 #include <Arduino.h>
 #include <M5Unified.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <cstring>
@@ -14,6 +16,7 @@ namespace
     constexpr uint16_t COLOR_TEXT_PRIMARY = 0xFFFF;
     constexpr uint16_t COLOR_TEXT_MUTED = 0xC618;
     constexpr uint16_t COLOR_DATA = 0xFD20;
+    constexpr uint16_t COLOR_LOGGED_TEMP = 0x07E0;
     constexpr uint16_t COLOR_EVENT = 0xAEDC;
     constexpr uint16_t COLOR_WARNING = 0xF800;
     constexpr uint16_t COLOR_PANEL_EDGE = 0x528A;
@@ -33,6 +36,10 @@ namespace
     constexpr int CONTENT_H = 172;
     constexpr int LIVE_TIME_Y = 214;
     constexpr int LIVE_WARNING_Y = 230;
+    constexpr int LAST_LOG_BOX_X = 210;
+    constexpr int LAST_LOG_BOX_Y = 50;
+    constexpr int LAST_LOG_BOX_W = 82;
+    constexpr int LAST_LOG_BOX_H = 38;
 
     constexpr int SETTINGS_BASE_X = 40;
     constexpr int SETTINGS_BASE_Y = 86;
@@ -88,7 +95,12 @@ namespace
     unsigned long live_last_countdown_seconds = 0;
     bool live_last_temp_valid = false;
     float live_last_temperature = 0.0f;
+    bool live_last_logged_temp_valid = false;
+    float live_last_logged_temperature = 0.0f;
     bool live_last_below_threshold = false;
+    bool logged_display_cache_valid = false;
+    bool logged_display_temperature_valid = false;
+    float logged_display_temperature = 0.0f;
 
     void request_redraw()
     {
@@ -99,6 +111,7 @@ namespace
     {
         live_time_cache_valid = false;
         live_values_cache_valid = false;
+        logged_display_cache_valid = false;
     }
 
     unsigned long highlighted_until_ms = 0;
@@ -212,6 +225,29 @@ namespace
         M5.Display.drawRoundRect(CONTENT_X, CONTENT_Y, CONTENT_W, CONTENT_H, 14, COLOR_PANEL_EDGE);
     }
 
+    void draw_logged_temperature_box(float temp, bool valid)
+    {
+        M5.Display.fillRoundRect(LAST_LOG_BOX_X, LAST_LOG_BOX_Y, LAST_LOG_BOX_W, LAST_LOG_BOX_H, 6, COLOR_BG);
+        M5.Display.drawRoundRect(LAST_LOG_BOX_X, LAST_LOG_BOX_Y, LAST_LOG_BOX_W, LAST_LOG_BOX_H, 6, COLOR_PANEL_EDGE);
+
+        M5.Display.setTextSize(1);
+        M5.Display.setTextColor(COLOR_TEXT_MUTED, COLOR_BG);
+        M5.Display.setCursor(LAST_LOG_BOX_X + 10, LAST_LOG_BOX_Y + 6);
+        M5.Display.print("LAST LOG");
+
+        M5.Display.setTextSize(2);
+        M5.Display.setTextColor(COLOR_LOGGED_TEMP, COLOR_BG);
+        M5.Display.setCursor(LAST_LOG_BOX_X + 8, LAST_LOG_BOX_Y + 20);
+        if (valid)
+        {
+            M5.Display.printf("%.1f C", temp);
+        }
+        else
+        {
+            M5.Display.print("--.- C");
+        }
+    }
+
     void draw_boot_test_page()
     {
         M5.Display.fillScreen(0x07E0);
@@ -284,6 +320,11 @@ namespace
         const bool warning_changed =
             !live_values_cache_valid ||
             is_below_threshold != live_last_below_threshold;
+        const bool logged_temperature_changed =
+            !live_values_cache_valid ||
+            app_state.last_logged_temperature_valid != live_last_logged_temp_valid ||
+            (app_state.last_logged_temperature_valid && live_last_logged_temp_valid &&
+             std::fabs(app_state.last_logged_temperature - live_last_logged_temperature) > 0.01f);
 
         if (timer_changed)
         {
@@ -439,10 +480,22 @@ namespace
             }
         }
 
+        if (logged_temperature_changed)
+        {
+            draw_logged_temperature_box(
+                app_state.last_logged_temperature,
+                app_state.last_logged_temperature_valid);
+            logged_display_temperature = app_state.last_logged_temperature;
+            logged_display_temperature_valid = app_state.last_logged_temperature_valid;
+            logged_display_cache_valid = true;
+        }
+
         live_values_cache_valid = true;
         live_last_countdown_seconds = app_state.countdown_remaining_seconds;
         live_last_temp_valid = app_state.temperature_valid;
         live_last_temperature = app_state.current_temperature;
+        live_last_logged_temp_valid = app_state.last_logged_temperature_valid;
+        live_last_logged_temperature = app_state.last_logged_temperature;
         live_last_below_threshold = is_below_threshold;
     }
 
@@ -757,6 +810,33 @@ void DisplayService::update(AppState &app_state)
         draw_live_static();
     }
     draw_live_dynamic(app_state);
+}
+
+void DisplayService::updateDisplay(float temp)
+{
+    const bool changed =
+        !logged_display_cache_valid ||
+        !logged_display_temperature_valid ||
+        std::fabs(temp - logged_display_temperature) > 0.01f;
+
+    if (!changed)
+    {
+        return;
+    }
+
+    logged_display_temperature = temp;
+    logged_display_temperature_valid = true;
+    logged_display_cache_valid = true;
+
+    if (current_view != ViewMode::Live || !live_static_drawn)
+    {
+        return;
+    }
+
+    SpiBusLock bus_lock(SpiBusOwner::Display);
+    draw_logged_temperature_box(logged_display_temperature, logged_display_temperature_valid);
+    live_last_logged_temperature = logged_display_temperature;
+    live_last_logged_temp_valid = logged_display_temperature_valid;
 }
 
 void DisplayService::render_time(time_t timestamp)

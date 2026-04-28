@@ -32,6 +32,8 @@ struct AppState
     // Logging state
     bool logging_enabled = true;
     unsigned long last_log_time_ms = 0;
+    float last_logged_temperature = 0.0f;
+    bool last_logged_temperature_valid = false;
     unsigned long time_sequence_id = 0;
 
     // Timer control

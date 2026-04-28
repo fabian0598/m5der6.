@@ -623,6 +623,9 @@ void loop()
     {
         app_state.last_log_time_ms = now;
         app_state.time_sequence_id++;
+        app_state.last_logged_temperature = app_state.current_temperature;
+        app_state.last_logged_temperature_valid = true;
+        display_service.updateDisplay(app_state.last_logged_temperature);
         logger.log_time_sample(
             app_state.last_update_time,
             app_state.current_temperature,
