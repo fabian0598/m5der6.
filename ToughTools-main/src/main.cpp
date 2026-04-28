@@ -173,6 +173,37 @@ namespace
                static_cast<unsigned long>(state.set_timer_seconds);
     }
 
+    void apply_configured_timer_duration_change(AppState &state, unsigned long new_duration_seconds)
+    {
+        const unsigned long new_duration = (new_duration_seconds > 0) ? new_duration_seconds : 1UL;
+        const unsigned long previous_duration =
+            (state.last_applied_timer_duration_seconds > 0) ? state.last_applied_timer_duration_seconds : new_duration;
+
+        if (new_duration == previous_duration)
+        {
+            state.last_applied_timer_duration_seconds = new_duration;
+            return;
+        }
+
+        state.last_applied_timer_duration_seconds = new_duration;
+
+        if (state.timer_expired_waiting_restart)
+        {
+            return;
+        }
+
+        const unsigned long elapsed_seconds =
+            (previous_duration > state.countdown_remaining_seconds)
+                ? (previous_duration - state.countdown_remaining_seconds)
+                : 0UL;
+        const unsigned long remaining_seconds =
+            (new_duration > elapsed_seconds) ? (new_duration - elapsed_seconds) : 0UL;
+
+        state.countdown_remaining_seconds = remaining_seconds;
+        state.timer_end_time = state.last_update_time + static_cast<time_t>(remaining_seconds);
+        state.timer_end_time_valid = true;
+    }
+
     time_t build_time_to_epoch()
     {
         const char month_names[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
@@ -600,6 +631,11 @@ void setup()
     }
 
     app_state.countdown_remaining_seconds = get_configured_timer_duration_seconds(app_state);
+    if (app_state.countdown_remaining_seconds == 0)
+    {
+        app_state.countdown_remaining_seconds = 1;
+    }
+    app_state.last_applied_timer_duration_seconds = app_state.countdown_remaining_seconds;
 
     // Start internet time sync in the background; use RTC/build-time immediately.
     request_ntp_sync(true, millis(), true);
@@ -700,6 +736,7 @@ void loop()
     // Restart timer only on falling edge: temperature moves from >= threshold to below threshold.
     const unsigned long configured_timer_duration = get_configured_timer_duration_seconds(app_state);
     const unsigned long effective_timer_duration = (configured_timer_duration > 0) ? configured_timer_duration : 1UL;
+    apply_configured_timer_duration_change(app_state, effective_timer_duration);
     const bool is_below_threshold =
         app_state.temperature_valid &&
         app_state.current_temperature < app_state.set_temperature_threshold;
@@ -817,11 +854,14 @@ void loop()
     // Update display (non-blocking, respects interval)
     display_service.update(app_state);
 
-    if (app_state.settings_dirty)
+    if (app_state.settings_dirty &&
+        (app_state.settings_last_changed_ms == 0 ||
+         now - app_state.settings_last_changed_ms >= SETTINGS_SAVE_DEBOUNCE_MS))
     {
         if (save_settings_to_sd(app_state))
         {
             app_state.settings_dirty = false;
+            app_state.settings_last_changed_ms = 0;
             log_event_entry(app_state, logger, "SETTINGS_SAVED", 0, app_state.current_temperature, LogLevel::Debug);
         }
     }

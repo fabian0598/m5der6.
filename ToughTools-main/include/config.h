@@ -36,6 +36,7 @@ constexpr unsigned long TIMER_EXPIRED_TONE_GAP_MS = 160UL;
 constexpr unsigned int TIMER_EXPIRED_TONE_COUNT = 4;
 constexpr unsigned long TIMER_EXPIRED_FLASH_MS = 250UL;
 constexpr unsigned long TIMER_EXPIRY_DISPLAY_REFRESH_MS = 200UL;
+constexpr unsigned long SETTINGS_SAVE_DEBOUNCE_MS = 1500UL;
 
 // Legacy RS485 pins kept only for compatibility with older code paths.
 // The active sensor path is the MAX31865/PT100 SPI configuration above.

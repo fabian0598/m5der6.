@@ -23,6 +23,7 @@ struct AppState
 
     // Countdown timer
     unsigned long countdown_remaining_seconds = 3600; // Starts at 1 hour
+    unsigned long last_applied_timer_duration_seconds = 3600;
     unsigned long last_timer_update_ms = 0;
 
     // Modbus communication status
@@ -57,6 +58,7 @@ struct AppState
     unsigned int set_timer_seconds = 0;
     float set_temperature_threshold = 70.0f;
     bool settings_dirty = false;
+    unsigned long settings_last_changed_ms = 0;
 
     // Recent log lines for settings screen preview
     char recent_logs[MAX_RECENT_LOGS][MAX_LOG_LINE_LENGTH] = {};
