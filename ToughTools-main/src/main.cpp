@@ -539,6 +539,7 @@ void loop()
 {
     unsigned long now = millis();
     const bool log_due = (now - app_state.last_log_time_ms) >= LOG_INTERVAL_MS;
+    const bool time_log_write_due = log_due && app_state.temperature_valid;
 
     if (ENABLE_NTP_TIME_SYNC && (now - last_ntp_sync_attempt_ms >= NTP_RESYNC_INTERVAL_MS))
     {
@@ -553,7 +554,7 @@ void loop()
     // Prefer system time when valid (NTP/RTC), otherwise fallback runtime base.
     app_state.last_update_time = get_runtime_clock_time();
 
-    if (log_due)
+    if (time_log_write_due)
     {
         app_state.last_log_time_ms = now;
         app_state.time_sequence_id++;
@@ -570,7 +571,7 @@ void loop()
 
     // Do not poll the sensor while logging is active or shortly after SD writes.
     // This keeps the displayed value stable and avoids SPI contention symptoms.
-    if (!log_due && !logger.should_defer_sensor_poll())
+    if (!time_log_write_due && !logger.should_defer_sensor_poll())
     {
         const bool previous_modbus_connected = app_state.modbus_connected;
         modbus_service.poll(app_state);

@@ -1,0 +1,36 @@
+# PlatformIO build artifacts
+.pio/
+.pioenvs/
+build/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary files
+*.tmp
+*.o
+*.a
+*.lib
+.clang_complete
+.gcc-flags.json
+
+# Local device secrets
+include/wifi_secrets.h
+
+# Local storage simulation output
+storage_sim_output/
+
+# Local live capture output (serial -> CSV)
+storage_live_output/
