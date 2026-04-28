@@ -420,7 +420,18 @@ namespace
         append_recent_log_line(state, line);
     }
 
-    void append_event_log_preview(AppState &state, time_t ts, const char *event_name, unsigned long elapsed_seconds, float temp, unsigned long event_id, LogLevel level)
+    void format_temperature_preview(char *buffer, size_t buffer_size, float temp, bool valid)
+    {
+        if (valid)
+        {
+            snprintf(buffer, buffer_size, "%.1f", temp);
+            return;
+        }
+
+        snprintf(buffer, buffer_size, "n/a");
+    }
+
+    void append_event_log_preview(AppState &state, time_t ts, const char *event_name, unsigned long elapsed_seconds, float temp, bool temperature_valid, unsigned long event_id, LogLevel level)
     {
         tm *timeinfo = localtime(&ts);
         char time_str[16] = "--:--:--";
@@ -434,7 +445,9 @@ namespace
         const unsigned long seconds = elapsed_seconds % 60UL;
 
         char line[AppState::MAX_LOG_LINE_LENGTH];
-        snprintf(line, sizeof(line), "%c %s,%s,%02lu:%02lu:%02lu,%.1f,%lu", log_level_to_letter(level), time_str, event_name, hours, minutes, seconds, temp, event_id);
+        char temp_text[12];
+        format_temperature_preview(temp_text, sizeof(temp_text), temp, temperature_valid);
+        snprintf(line, sizeof(line), "%c %s,%s,%02lu:%02lu:%02lu,%s,%lu", log_level_to_letter(level), time_str, event_name, hours, minutes, seconds, temp_text, event_id);
         append_recent_log_line(state, line);
     }
 
@@ -446,6 +459,7 @@ namespace
             event_name,
             elapsed_seconds,
             temp,
+            state.temperature_valid,
             state.event_sequence_id,
             level);
         if (should_emit_level(level, DISPLAY_LOG_MIN_LEVEL))
@@ -456,6 +470,7 @@ namespace
                 event_name,
                 elapsed_seconds,
                 temp,
+                state.temperature_valid,
                 state.event_sequence_id,
                 level);
         }
