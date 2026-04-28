@@ -7,6 +7,7 @@
 #include <SD.h>
 #include <SPI.h>
 #include <esp_system.h>
+#include <esp_sntp.h>
 #include "config.h"
 #include "app_state.h"
 #include "modbus_service.h"
@@ -43,10 +44,24 @@ bool was_below_threshold = false;
 bool was_above_threshold = false;
 unsigned long boot_epoch_seconds = 0;
 unsigned long boot_millis = 0;
-unsigned long last_ntp_sync_attempt_ms = 0;
 
 namespace
 {
+    enum class NtpSyncState
+    {
+        Disabled,
+        Idle,
+        ConnectingWifi,
+        WaitingForTime,
+        Backoff
+    };
+
+    NtpSyncState ntp_sync_state = NtpSyncState::Idle;
+    unsigned long ntp_state_started_ms = 0;
+    unsigned long ntp_next_attempt_ms = 0;
+    bool ntp_sync_verbose = false;
+    bool ntp_missing_credentials_reported = false;
+
     bool ensure_sd_available_for_settings(bool verbose)
     {
         SpiBusLock bus_lock(SpiBusOwner::Sd);
@@ -220,89 +235,138 @@ namespace
 #endif
     }
 
-    bool ensure_wifi_connected(unsigned long timeout_ms)
+    bool ntp_sync_in_progress()
     {
-        if (WiFi.status() == WL_CONNECTED)
+        return ntp_sync_state == NtpSyncState::ConnectingWifi ||
+               ntp_sync_state == NtpSyncState::WaitingForTime;
+    }
+
+    void schedule_ntp_retry(unsigned long now, unsigned long delay_ms)
+    {
+        ntp_next_attempt_ms = now + delay_ms;
+        ntp_sync_state = NtpSyncState::Backoff;
+    }
+
+    void begin_waiting_for_ntp(unsigned long now)
+    {
+        sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
+        configTzTime(TIMEZONE_TZ, NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3);
+        ntp_state_started_ms = now;
+        ntp_sync_state = NtpSyncState::WaitingForTime;
+    }
+
+    void request_ntp_sync(bool verbose, unsigned long now, bool force = false)
+    {
+        if (!ENABLE_NTP_TIME_SYNC)
         {
-            return true;
+            ntp_sync_state = NtpSyncState::Disabled;
+            return;
         }
 
         if (!has_wifi_credentials())
         {
-            Serial.println("[Time] wifi_secrets.h missing or empty, skipping NTP");
-            return false;
+            if (verbose && !ntp_missing_credentials_reported)
+            {
+                Serial.println("[Time] wifi_secrets.h missing or empty, skipping NTP");
+                ntp_missing_credentials_reported = true;
+            }
+            ntp_sync_state = NtpSyncState::Disabled;
+            return;
         }
+
+        if (ntp_sync_in_progress())
+        {
+            ntp_sync_verbose = ntp_sync_verbose || verbose;
+            return;
+        }
+
+        if (!force && ntp_sync_state == NtpSyncState::Backoff && now < ntp_next_attempt_ms)
+        {
+            return;
+        }
+
+        ntp_sync_verbose = verbose;
+        ntp_state_started_ms = now;
 
 #if WIFI_SECRETS_AVAILABLE
         WiFi.mode(WIFI_STA);
-        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-        const unsigned long start = millis();
-        while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeout_ms)
-        {
-            delay(200);
-        }
-
         if (WiFi.status() == WL_CONNECTED)
         {
             Serial.printf("[Time] WiFi connected, IP=%s\n", WiFi.localIP().toString().c_str());
-            return true;
+            begin_waiting_for_ntp(now);
+            return;
         }
 
-        Serial.println("[Time] WiFi connect timeout");
-        return false;
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+        ntp_sync_state = NtpSyncState::ConnectingWifi;
 #else
-        (void)timeout_ms;
-        return false;
+        schedule_ntp_retry(now, NTP_RETRY_INTERVAL_MS);
 #endif
     }
 
-    bool wait_for_valid_system_time(unsigned long timeout_ms)
+    bool process_ntp_sync(unsigned long now)
     {
-        const unsigned long start = millis();
-        while ((millis() - start) < timeout_ms)
+        if (ntp_sync_state == NtpSyncState::Disabled)
         {
-            const time_t now = time(nullptr);
-            if (now >= VALID_TIME_EPOCH_MIN)
+            return false;
+        }
+
+        if (ntp_sync_state == NtpSyncState::Backoff)
+        {
+            if (now >= ntp_next_attempt_ms)
             {
-                return true;
+                request_ntp_sync(false, now, true);
             }
-            delay(200);
-        }
-        return false;
-    }
-
-    bool try_sync_time_from_ntp(bool verbose)
-    {
-        if (!ENABLE_NTP_TIME_SYNC)
-        {
             return false;
         }
 
-        if (!ensure_wifi_connected(WIFI_CONNECT_TIMEOUT_MS))
+        if (ntp_sync_state == NtpSyncState::ConnectingWifi)
         {
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                Serial.printf("[Time] WiFi connected, IP=%s\n", WiFi.localIP().toString().c_str());
+                begin_waiting_for_ntp(now);
+                return false;
+            }
+
+            if (now - ntp_state_started_ms >= WIFI_CONNECT_TIMEOUT_MS)
+            {
+                if (ntp_sync_verbose)
+                {
+                    Serial.println("[Time] WiFi connect timeout");
+                }
+                WiFi.disconnect(false);
+                schedule_ntp_retry(now, NTP_RETRY_INTERVAL_MS);
+            }
             return false;
         }
 
-        configTzTime(TIMEZONE_TZ, NTP_SERVER_1, NTP_SERVER_2, NTP_SERVER_3);
-        const bool synced = wait_for_valid_system_time(NTP_SYNC_TIMEOUT_MS);
-
-        if (synced)
+        if (ntp_sync_state == NtpSyncState::WaitingForTime)
         {
             const time_t synced_time = time(nullptr);
-            struct timeval tv = {.tv_sec = synced_time, .tv_usec = 0};
-            settimeofday(&tv, nullptr);
-            if (verbose)
+            if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED && synced_time >= VALID_TIME_EPOCH_MIN)
             {
-                Serial.printf("[Time] NTP sync OK: epoch=%ld\n", static_cast<long>(synced_time));
+                struct timeval tv = {.tv_sec = synced_time, .tv_usec = 0};
+                settimeofday(&tv, nullptr);
+                ntp_next_attempt_ms = now + NTP_RESYNC_INTERVAL_MS;
+                ntp_sync_state = NtpSyncState::Idle;
+                if (ntp_sync_verbose)
+                {
+                    Serial.printf("[Time] NTP sync OK: epoch=%ld\n", static_cast<long>(synced_time));
+                }
+                return true;
             }
-            return true;
+
+            if (now - ntp_state_started_ms >= NTP_SYNC_TIMEOUT_MS)
+            {
+                if (ntp_sync_verbose)
+                {
+                    Serial.println("[Time] NTP sync timeout");
+                }
+                schedule_ntp_retry(now, NTP_RETRY_INTERVAL_MS);
+            }
         }
 
-        if (verbose)
-        {
-            Serial.println("[Time] NTP sync timeout");
-        }
         return false;
     }
 
@@ -496,9 +560,9 @@ void setup()
 
     app_state.countdown_remaining_seconds = get_configured_timer_duration_seconds(app_state);
 
-    // Prefer internet time (NTP) if available, otherwise RTC and finally build-time.
-    bool ntp_ok = try_sync_time_from_ntp(true);
-    time_t current_device_time = ntp_ok ? time(nullptr) : get_current_device_time();
+    // Start internet time sync in the background; use RTC/build-time immediately.
+    request_ntp_sync(true, millis(), true);
+    time_t current_device_time = get_current_device_time();
     const time_t build_epoch = build_time_to_epoch();
     const time_t max_reasonable_drift = 180L * 24L * 3600L;
     const bool rtc_plausible =
@@ -515,9 +579,9 @@ void setup()
             Serial.println("[Time] RTC invalid, using build-time seed");
         }
     }
-    else if (!ntp_ok)
+    else
     {
-        Serial.println("[Time] Using RTC/system time (NTP unavailable)");
+        Serial.println("[Time] Using RTC/system time while NTP sync runs in background");
     }
 
     boot_epoch_seconds = static_cast<unsigned long>(current_device_time);
@@ -541,13 +605,14 @@ void loop()
     const bool log_due = (now - app_state.last_log_time_ms) >= LOG_INTERVAL_MS;
     const bool time_log_write_due = log_due && app_state.temperature_valid;
 
-    if (ENABLE_NTP_TIME_SYNC && (now - last_ntp_sync_attempt_ms >= NTP_RESYNC_INTERVAL_MS))
+    if (process_ntp_sync(now))
     {
-        last_ntp_sync_attempt_ms = now;
-        if (try_sync_time_from_ntp(false))
-        {
-            Serial.println("[Time] Periodic NTP resync OK");
-        }
+        Serial.println("[Time] Background NTP sync OK");
+    }
+
+    if (ENABLE_NTP_TIME_SYNC && !ntp_sync_in_progress() && ntp_sync_state == NtpSyncState::Idle && now >= ntp_next_attempt_ms)
+    {
+        request_ntp_sync(false, now, true);
     }
 
     // Update current time
