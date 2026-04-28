@@ -235,6 +235,27 @@ namespace
 #endif
     }
 
+    bool should_emit_level(LogLevel level, LogLevel minimum)
+    {
+        return static_cast<uint8_t>(level) >= static_cast<uint8_t>(minimum);
+    }
+
+    char log_level_to_letter(LogLevel level)
+    {
+        switch (level)
+        {
+        case LogLevel::Debug:
+            return 'D';
+        case LogLevel::Info:
+            return 'I';
+        case LogLevel::Warning:
+            return 'W';
+        case LogLevel::Error:
+            return 'E';
+        }
+        return 'I';
+    }
+
     bool ntp_sync_in_progress()
     {
         return ntp_sync_state == NtpSyncState::ConnectingWifi ||
@@ -399,7 +420,7 @@ namespace
         append_recent_log_line(state, line);
     }
 
-    void append_event_log_preview(AppState &state, time_t ts, const char *event_name, unsigned long elapsed_seconds, float temp, unsigned long event_id)
+    void append_event_log_preview(AppState &state, time_t ts, const char *event_name, unsigned long elapsed_seconds, float temp, unsigned long event_id, LogLevel level)
     {
         tm *timeinfo = localtime(&ts);
         char time_str[16] = "--:--:--";
@@ -413,11 +434,11 @@ namespace
         const unsigned long seconds = elapsed_seconds % 60UL;
 
         char line[AppState::MAX_LOG_LINE_LENGTH];
-        snprintf(line, sizeof(line), "%s,%s,%02lu:%02lu:%02lu,%.1f,%lu", time_str, event_name, hours, minutes, seconds, temp, event_id);
+        snprintf(line, sizeof(line), "%c %s,%s,%02lu:%02lu:%02lu,%.1f,%lu", log_level_to_letter(level), time_str, event_name, hours, minutes, seconds, temp, event_id);
         append_recent_log_line(state, line);
     }
 
-    void log_event_entry(AppState &state, Logger &logger, const char *event_name, unsigned long elapsed_seconds, float temp)
+    void log_event_entry(AppState &state, Logger &logger, const char *event_name, unsigned long elapsed_seconds, float temp, LogLevel level = LogLevel::Info)
     {
         state.event_sequence_id++;
         logger.log_event(
@@ -425,14 +446,19 @@ namespace
             event_name,
             elapsed_seconds,
             temp,
-            state.event_sequence_id);
-        append_event_log_preview(
-            state,
-            state.last_update_time,
-            event_name,
-            elapsed_seconds,
-            temp,
-            state.event_sequence_id);
+            state.event_sequence_id,
+            level);
+        if (should_emit_level(level, DISPLAY_LOG_MIN_LEVEL))
+        {
+            append_event_log_preview(
+                state,
+                state.last_update_time,
+                event_name,
+                elapsed_seconds,
+                temp,
+                state.event_sequence_id,
+                level);
+        }
     }
 
     bool load_settings_from_sd(AppState &state)
@@ -593,7 +619,7 @@ void setup()
     app_state.timer_end_time_valid = true;
 
     app_state.last_update_time = current_device_time;
-    log_event_entry(app_state, logger, "BOOT", 0, 0.0f);
+    log_event_entry(app_state, logger, "BOOT", 0, 0.0f, LogLevel::Warning);
 
     Serial.println("Setup complete. Device ready.\n");
 }
@@ -651,7 +677,8 @@ void loop()
                 logger,
                 app_state.modbus_connected ? "SENSOR_OK" : "SENSOR_LOST",
                 0,
-                app_state.current_temperature);
+                app_state.current_temperature,
+                app_state.modbus_connected ? LogLevel::Debug : LogLevel::Warning);
         }
     }
 
@@ -697,7 +724,8 @@ void loop()
                 logger,
                 "TIMER_RESTART",
                 (now - app_state.timer_expiry_pause_started_ms) / 1000UL,
-                app_state.current_temperature);
+                app_state.current_temperature,
+                LogLevel::Warning);
         }
         else
         {
@@ -735,7 +763,8 @@ void loop()
                         logger,
                         "TIMER_EXPIRED",
                         effective_timer_duration,
-                        app_state.current_temperature);
+                        app_state.current_temperature,
+                        LogLevel::Error);
                 }
             }
             else
@@ -752,7 +781,8 @@ void loop()
             logger,
             "TEMP_BELOW_THRESHOLD",
             elapsed_until_reset,
-            app_state.current_temperature);
+            app_state.current_temperature,
+            LogLevel::Warning);
     }
 
     if (is_above_threshold && !was_above_threshold)
@@ -762,7 +792,8 @@ void loop()
             logger,
             "TEMP_ABOVE_THRESHOLD",
             elapsed_until_reset,
-            app_state.current_temperature);
+            app_state.current_temperature,
+            LogLevel::Info);
     }
 
     was_below_threshold = is_below_threshold;
@@ -776,14 +807,14 @@ void loop()
         if (save_settings_to_sd(app_state))
         {
             app_state.settings_dirty = false;
-            log_event_entry(app_state, logger, "SETTINGS_SAVED", 0, app_state.current_temperature);
+            log_event_entry(app_state, logger, "SETTINGS_SAVED", 0, app_state.current_temperature, LogLevel::Debug);
         }
     }
 
     // Prepare shutdown event when the power button is pressed.
     if (M5.BtnPWR.wasClicked())
     {
-        log_event_entry(app_state, logger, "SHUTDOWN", 0, app_state.current_temperature);
+        log_event_entry(app_state, logger, "SHUTDOWN", 0, app_state.current_temperature, LogLevel::Warning);
         delay(50);
         M5.Power.powerOff();
     }

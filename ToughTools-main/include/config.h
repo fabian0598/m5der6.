@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <ctime>
 
 /**
@@ -59,6 +60,19 @@ constexpr unsigned long SD_CARD_SPI_HZ_FALLBACK = 4000000UL;
 constexpr unsigned long SD_CARD_SPI_HZ_RECOVERY = 400000UL;
 constexpr unsigned long SD_CARD_SPI_HZ = SD_CARD_SPI_HZ_PRIMARY;
 constexpr bool LOGGING_ENABLED = true;
+constexpr bool SPI_BUS_LOCK_DEBUG_LOGS = false;
+
+enum class LogLevel : uint8_t
+{
+    Debug = 0,
+    Info = 1,
+    Warning = 2,
+    Error = 3,
+};
+
+constexpr LogLevel SERIAL_LOG_MIN_LEVEL = LogLevel::Debug;
+constexpr LogLevel DISPLAY_LOG_MIN_LEVEL = LogLevel::Debug;
+constexpr LogLevel SD_EVENT_LOG_MIN_LEVEL = LogLevel::Warning;
 
 // Display settings
 constexpr int DISPLAY_WIDTH = 320;

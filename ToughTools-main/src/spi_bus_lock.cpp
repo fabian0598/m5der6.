@@ -23,6 +23,22 @@ namespace
         return "UNKNOWN";
     }
 
+    void spi_debug_println(const char *message)
+    {
+        if (SPI_BUS_LOCK_DEBUG_LOGS)
+        {
+            Serial.println(message);
+        }
+    }
+
+    void spi_debug_printf(const char *format, const char *value)
+    {
+        if (SPI_BUS_LOCK_DEBUG_LOGS)
+        {
+            Serial.printf(format, value);
+        }
+    }
+
     void ensure_mutex_created()
     {
         if (g_spi_bus_mutex != nullptr)
@@ -51,25 +67,25 @@ namespace
 void prepare_sd_bus_locked()
 {
     set_all_chip_selects_high();
-    Serial.println("[SPI] CS states: SD=HIGH, MAX=HIGH");
+    spi_debug_println("[SPI] CS states: SD=HIGH, MAX=HIGH");
 }
 
 void prepare_max_bus_locked()
 {
     set_all_chip_selects_high();
-    Serial.println("[SPI] CS states: SD=HIGH, MAX=HIGH");
+    spi_debug_println("[SPI] CS states: SD=HIGH, MAX=HIGH");
 }
 
 SpiBusLock::SpiBusLock(SpiBusOwner owner_in) : owner(owner_in)
 {
     ensure_mutex_created();
-    Serial.printf("[SPI] Lock acquire requested by %s\n", owner_to_string(owner));
+    spi_debug_printf("[SPI] Lock acquire requested by %s\n", owner_to_string(owner));
     if (g_spi_bus_mutex != nullptr)
     {
         xSemaphoreTakeRecursive(g_spi_bus_mutex, portMAX_DELAY);
     }
 
-    Serial.printf("[SPI] Lock acquired by %s\n", owner_to_string(owner));
+    spi_debug_printf("[SPI] Lock acquired by %s\n", owner_to_string(owner));
 
     if (owner == SpiBusOwner::Sd)
     {
@@ -88,12 +104,12 @@ SpiBusLock::SpiBusLock(SpiBusOwner owner_in) : owner(owner_in)
 SpiBusLock::~SpiBusLock()
 {
     set_all_chip_selects_high();
-    Serial.println("[SPI] CS states: SD=HIGH, MAX=HIGH");
+    spi_debug_println("[SPI] CS states: SD=HIGH, MAX=HIGH");
 
     if (g_spi_bus_mutex != nullptr)
     {
         xSemaphoreGiveRecursive(g_spi_bus_mutex);
     }
 
-    Serial.printf("[SPI] Lock released by %s\n", owner_to_string(owner));
+    spi_debug_printf("[SPI] Lock released by %s\n", owner_to_string(owner));
 }

@@ -27,6 +27,27 @@ namespace
         prepare_sd_bus_locked();
     }
 
+    bool should_emit_level(LogLevel level, LogLevel minimum)
+    {
+        return static_cast<uint8_t>(level) >= static_cast<uint8_t>(minimum);
+    }
+
+    const char *log_level_to_string(LogLevel level)
+    {
+        switch (level)
+        {
+        case LogLevel::Debug:
+            return "DEBUG";
+        case LogLevel::Info:
+            return "INFO";
+        case LogLevel::Warning:
+            return "WARN";
+        case LogLevel::Error:
+            return "ERROR";
+        }
+        return "INFO";
+    }
+
     const char *sd_card_type_to_string(uint8_t card_type)
     {
         switch (card_type)
@@ -492,30 +513,40 @@ void Logger::log_time_sample(time_t timestamp, float temperature, unsigned long 
     sensor_poll_block_until_ms = millis() + SENSOR_POLL_DEFER_AFTER_SD_WRITE_MS;
 }
 
-void Logger::log_event(time_t timestamp, const char *event_name, unsigned long elapsed_seconds, float temperature, unsigned long event_id)
+void Logger::log_event(time_t timestamp, const char *event_name, unsigned long elapsed_seconds, float temperature, unsigned long event_id, LogLevel level)
 {
     if (!LOGGING_ENABLED)
     {
         return;
     }
 
-    try_recover_sd();
-
     const char *time_str = format_timestamp(timestamp);
     const unsigned long hours = elapsed_seconds / 3600UL;
     const unsigned long minutes = (elapsed_seconds % 3600UL) / 60UL;
     const unsigned long seconds = elapsed_seconds % 60UL;
-    const char *target_path = (sd_ready && current_event_log_path[0] != '\0') ? current_event_log_path : "SERIAL_ONLY";
+    const bool write_to_sd = should_emit_level(level, SD_EVENT_LOG_MIN_LEVEL);
+    const char *target_path = (write_to_sd && sd_ready && current_event_log_path[0] != '\0') ? current_event_log_path : "SCREEN_ONLY";
 
-    Serial.printf("[EventLog][%s] %s,%s,%02lu:%02lu:%02lu,%.1f,%lu\n",
-                  target_path,
-                  time_str,
-                  event_name,
-                  hours,
-                  minutes,
-                  seconds,
-                  temperature,
-                  event_id);
+    if (should_emit_level(level, SERIAL_LOG_MIN_LEVEL))
+    {
+        Serial.printf("[EventLog][%s][%s] %s,%s,%02lu:%02lu:%02lu,%.1f,%lu\n",
+                      target_path,
+                      log_level_to_string(level),
+                      time_str,
+                      event_name,
+                      hours,
+                      minutes,
+                      seconds,
+                      temperature,
+                      event_id);
+    }
+
+    if (!write_to_sd)
+    {
+        return;
+    }
+
+    try_recover_sd();
 
     if (!sd_ready)
     {

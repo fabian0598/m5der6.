@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app_state.h"
+#include "config.h"
 #include <cstdint>
 #include <ctime>
 
@@ -33,7 +34,7 @@ public:
      * Log an event to the event log.
      * Format: "YYYY-MM-DD HH:MM:SS,event_name,elapsed_hh:mm:ss,temperature,event_id"
      */
-    void log_event(time_t timestamp, const char *event_name, unsigned long elapsed_seconds, float temperature, unsigned long event_id);
+    void log_event(time_t timestamp, const char *event_name, unsigned long elapsed_seconds, float temperature, unsigned long event_id, LogLevel level = LogLevel::Info);
 
     /**
      * Check if SD card is ready for logging.
