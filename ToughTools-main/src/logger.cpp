@@ -579,6 +579,12 @@ const char *Logger::format_timestamp(time_t timestamp)
 {
     static char buffer[32];
     struct tm *timeinfo = localtime(&timestamp);
+    if (timeinfo == nullptr)
+    {
+        strlcpy(buffer, "---- -- -- --:--:--", sizeof(buffer));
+        return buffer;
+    }
+
     strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
     return buffer;
 }
