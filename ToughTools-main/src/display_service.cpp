@@ -114,6 +114,12 @@ namespace
         logged_display_cache_valid = false;
     }
 
+    void mark_settings_dirty(AppState &app_state)
+    {
+        app_state.settings_dirty = true;
+        app_state.settings_last_changed_ms = millis();
+    }
+
     unsigned long highlighted_until_ms = 0;
     int highlighted_x = 0;
     int highlighted_y = 0;
@@ -735,7 +741,7 @@ void DisplayService::update(AppState &app_state)
                     if (hit_rect_soft(x, y, col_x + TIMER_BTN_OFFSET_X, SETTINGS_BASE_Y, TIMER_BTN_W, TIMER_BTN_H))
                     {
                         *target = (*target < max_value) ? (*target + 1) : max_value;
-                        app_state.settings_dirty = true;
+                        mark_settings_dirty(app_state);
                         settings_dirty_region = (i == 0) ? SettingsDirtyRegion::Hours : (i == 1) ? SettingsDirtyRegion::Minutes
                                                                                                  : SettingsDirtyRegion::Seconds;
                         set_button_feedback(col_x + TIMER_BTN_OFFSET_X, SETTINGS_BASE_Y, TIMER_BTN_W, TIMER_BTN_H);
@@ -744,7 +750,7 @@ void DisplayService::update(AppState &app_state)
                     if (hit_rect_soft(x, y, col_x + TIMER_BTN_OFFSET_X, SETTINGS_BASE_Y + 60, TIMER_BTN_W, TIMER_BTN_H))
                     {
                         *target = (*target > 0) ? (*target - 1) : 0;
-                        app_state.settings_dirty = true;
+                        mark_settings_dirty(app_state);
                         settings_dirty_region = (i == 0) ? SettingsDirtyRegion::Hours : (i == 1) ? SettingsDirtyRegion::Minutes
                                                                                                  : SettingsDirtyRegion::Seconds;
                         set_button_feedback(col_x + TIMER_BTN_OFFSET_X, SETTINGS_BASE_Y + 60, TIMER_BTN_W, TIMER_BTN_H);
@@ -755,7 +761,7 @@ void DisplayService::update(AppState &app_state)
                 if (hit_rect_soft(x, y, TEMP_BTN_PLUS_X, TEMP_BTN_Y, TEMP_BTN_W, TEMP_BTN_H))
                 {
                     app_state.set_temperature_threshold = std::min(120.0f, app_state.set_temperature_threshold + 0.1f);
-                    app_state.settings_dirty = true;
+                    mark_settings_dirty(app_state);
                     settings_dirty_region = SettingsDirtyRegion::Temperature;
                     set_button_feedback(TEMP_BTN_PLUS_X, TEMP_BTN_Y, TEMP_BTN_W, TEMP_BTN_H);
                     request_redraw();
@@ -763,7 +769,7 @@ void DisplayService::update(AppState &app_state)
                 if (hit_rect_soft(x, y, TEMP_BTN_MINUS_X, TEMP_BTN_Y, TEMP_BTN_W, TEMP_BTN_H))
                 {
                     app_state.set_temperature_threshold = std::max(0.0f, app_state.set_temperature_threshold - 0.1f);
-                    app_state.settings_dirty = true;
+                    mark_settings_dirty(app_state);
                     settings_dirty_region = SettingsDirtyRegion::Temperature;
                     set_button_feedback(TEMP_BTN_MINUS_X, TEMP_BTN_Y, TEMP_BTN_W, TEMP_BTN_H);
                     request_redraw();
