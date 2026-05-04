@@ -238,25 +238,26 @@ The PT100 sensor has been calibrated against reference measurements at multiple 
 ### Calibration Data
 
 **Hardware Reference:**
-- PT100 resistance at 22.1°C: **110.4 Ω** (theoretical: ~108.7 Ω, measured slightly higher due to lead resistance)
+- PT100 resistance at 22.1°C: **108.8 Ω** (theoretical: ~108.6 Ω)
+- PT100 resistance at 40.0°C: **115.6 Ω** (theoretical: ~115.5 Ω)
+- PT100 resistance at 70.0°C: **127.4 Ω** (theoretical: ~127.2 Ω)
 
 **Temperature Measurements & Verified Offset:**
 
-| Temperature | Measured | Reference | Error |
+| Reference Temperature | Raw Reading | Corrected Reading | Applied Offset |
 |-------|----------|-----------|-------|
-| Room temperature (22°C) | +0.9°C | 22.1°C | −4.9°C |
-| Lukewarm water | varied | measured | −4.9°C |
-| 40°C water | measured | 40°C | −4.9°C |
-| 70°C water | measured | 70°C | −4.9°C |
+| Room temperature (22.1°C) | 27.6°C | 22.1°C | -5.5°C |
+| Lukewarm water (40.0°C) | 45.5°C | 40.0°C | -5.5°C |
+| Hot water (70.0°C) | 75.5°C | 70.0°C | -5.5°C |
 
-**Conclusion:** The offset is **constant across the entire operating range** (−4.9°C). A simple software offset calibration is sufficient; no linear scaling factor is needed.
+**Conclusion:** The offset is **constant across the entire operating range** (-5.5°C). A simple software offset calibration is sufficient; no linear scaling factor is needed.
 
 ### Applying Calibration
 
 Set in `include/config.h`:
 
 ```cpp
-constexpr float PT100_CALIBRATION_OFFSET_C = -4.9f;
+constexpr float PT100_CALIBRATION_OFFSET_C = -5.5f;
 ```
 
 This offset is applied automatically to all temperature readings in `src/modbus_service.cpp`. Raw temperatures are logged before offset for diagnostics.
