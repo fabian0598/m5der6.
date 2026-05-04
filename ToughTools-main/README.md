@@ -142,6 +142,42 @@ Use this only to generate example files without device serial stream:
 python3 tools/storage_format_sim.py --reset
 ```
 
+### Mode D: WLAN backup from inserted SD
+
+If `wifi_secrets.h` contains valid WLAN credentials, the firmware starts a small HTTP backup server after WiFi connects. The serial monitor prints the device URL:
+
+```text
+[Backup] HTTP server ready: http://192.168.x.x:80/
+```
+
+Download all exposed SD files from macOS:
+
+```bash
+python3 tools/download_backup.py http://192.168.x.x ./m5_sd_backup
+```
+
+The script reads:
+
+```text
+/manifest.json
+```
+
+and downloads:
+
+```text
+/settings.csv
+/logs/time/*.csv
+/logs/event/*.csv
+```
+
+Individual files are served through:
+
+```text
+/download?path=/logs/time/example.csv
+```
+
+The firmware holds the shared SPI lock while reading SD files, so PT100 polling and normal logging wait until the active HTTP file transfer is done.
+
 ## How To Check If And Where Data Is Saved
 
 1. Watch serial target path in each line.
@@ -226,4 +262,3 @@ constexpr float PT100_CALIBRATION_OFFSET_C = -4.9f;
 This offset is applied automatically to all temperature readings in `src/modbus_service.cpp`. Raw temperatures are logged before offset for diagnostics.
 
 ## References
-

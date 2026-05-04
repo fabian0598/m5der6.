@@ -90,3 +90,7 @@ constexpr unsigned long NTP_SYNC_TIMEOUT_MS = 12000UL;
 constexpr unsigned long NTP_RETRY_INTERVAL_MS = 60000UL;                     // retry every 60s until time is valid
 constexpr unsigned long NTP_RESYNC_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL; // 6 hours
 constexpr time_t VALID_TIME_EPOCH_MIN = 1700000000;                          // around 2023-11
+
+// WLAN backup server
+constexpr bool ENABLE_HTTP_BACKUP_SERVER = true;
+constexpr uint16_t HTTP_BACKUP_SERVER_PORT = 80;

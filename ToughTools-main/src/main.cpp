@@ -14,6 +14,7 @@
 #include "display_service.h"
 #include "logger.h"
 #include "spi_bus_lock.h"
+#include "backup_server.h"
 
 #if __has_include("wifi_secrets.h")
 #include "wifi_secrets.h"
@@ -37,6 +38,7 @@
 ModbusService modbus_service;
 DisplayService display_service;
 Logger logger;
+BackupServer backup_server;
 AppState app_state;
 
 // Timing state for main loop
@@ -686,6 +688,8 @@ void loop()
     {
         Serial.println("[Time] Background NTP sync OK");
     }
+    backup_server.begin_if_ready();
+    backup_server.handle();
 
     if (ENABLE_NTP_TIME_SYNC && !ntp_sync_in_progress() && ntp_sync_state == NtpSyncState::Idle && now >= ntp_next_attempt_ms)
     {
