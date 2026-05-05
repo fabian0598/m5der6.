@@ -124,6 +124,11 @@ bool ModbusService::read_temperature(float &temperature_out, float &raw_temperat
 
     raw_rtd_out = pt100_sensor.readRTD();
     fault_out = pt100_sensor.readFault();
+    if (raw_rtd_out == 0 || raw_rtd_out >= 32760)
+    {
+        fault_out = 0xFF;
+        return false;
+    }
     if (fault_out != 0)
     {
         // Retry once after fault clear to filter short bus/settle disturbances.
@@ -131,6 +136,11 @@ bool ModbusService::read_temperature(float &temperature_out, float &raw_temperat
         delayMicroseconds(MAX31865_CS_SETTLE_DELAY_US);
         raw_rtd_out = pt100_sensor.readRTD();
         fault_out = pt100_sensor.readFault();
+        if (raw_rtd_out == 0 || raw_rtd_out >= 32760)
+        {
+            fault_out = 0xFF;
+            return false;
+        }
         if (fault_out != 0)
         {
             pt100_sensor.clearFault();
@@ -146,6 +156,11 @@ bool ModbusService::read_temperature(float &temperature_out, float &raw_temperat
         delayMicroseconds(MAX31865_CS_SETTLE_DELAY_US);
         raw_rtd_out = pt100_sensor.readRTD();
         fault_out = pt100_sensor.readFault();
+        if (raw_rtd_out == 0 || raw_rtd_out >= 32760)
+        {
+            fault_out = 0xFF;
+            return false;
+        }
         if (fault_out == 0)
         {
             raw_temperature = pt100_sensor.temperature(MAX31865_RTD_NOMINAL, MAX31865_RREF);
