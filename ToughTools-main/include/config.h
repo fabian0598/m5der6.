@@ -20,6 +20,15 @@ constexpr float MAX31865_RREF = 430.0f;             // Reference resistor on the
 constexpr float MAX31865_RTD_NOMINAL = 100.0f;      // PT100 nominal resistance
 constexpr float PT100_CALIBRATION_OFFSET_C = -5.5f; // Subtract this offset after hardware calibration
 
+enum class Pt100WireMode : uint8_t
+{
+    TwoWire = 2,
+    ThreeWire = 3,
+    FourWire = 4,
+};
+
+constexpr Pt100WireMode PT100_WIRE_MODE = Pt100WireMode::ThreeWire;
+
 // Polling and timing (in milliseconds)
 constexpr unsigned long PT100_POLL_INTERVAL_MS = 1000;      // Poll temperature every 1 second
 constexpr unsigned long DISPLAY_REFRESH_INTERVAL_MS = 1000; // Refresh display every 1 second

@@ -13,6 +13,34 @@ namespace
     constexpr unsigned int SENSOR_FAILURE_GRACE_COUNT = 4;
     constexpr unsigned long MAX31865_CS_SETTLE_DELAY_US = 120UL;
 
+    max31865_numwires_t configured_max31865_wire_mode()
+    {
+        switch (PT100_WIRE_MODE)
+        {
+        case Pt100WireMode::ThreeWire:
+            return MAX31865_3WIRE;
+        case Pt100WireMode::FourWire:
+            return MAX31865_4WIRE;
+        case Pt100WireMode::TwoWire:
+        default:
+            return MAX31865_2WIRE;
+        }
+    }
+
+    const char *configured_pt100_wire_mode_label()
+    {
+        switch (PT100_WIRE_MODE)
+        {
+        case Pt100WireMode::ThreeWire:
+            return "3-wire";
+        case Pt100WireMode::FourWire:
+            return "4-wire";
+        case Pt100WireMode::TwoWire:
+        default:
+            return "2-wire";
+        }
+    }
+
     uint8_t max_read_register_raw(uint8_t reg)
     {
         // MAX31865 uses SPI mode 1. Keep SD deselected during direct probe.
@@ -40,8 +68,8 @@ void ModbusService::init()
     {
         SpiBusLock bus_lock(SpiBusOwner::Max);
 
-        // Important: configure the MAX31865 explicitly for a 2-wire PT100.
-        max_begin_ok = pt100_sensor.begin(MAX31865_2WIRE);
+        // Important: configure the MAX31865 explicitly for the RTD wiring.
+        max_begin_ok = pt100_sensor.begin(configured_max31865_wire_mode());
         pt100_sensor.clearFault();
 
         // Immediate hardware-SPI reachability probe after init.
@@ -68,7 +96,7 @@ void ModbusService::init()
                   static_cast<unsigned int>(startup_fault));
     if (startup_rtd >= 32760 && startup_fault == 0xFF)
     {
-        Serial.println("[PT100] Startup probe indicates no active MISO driver (all ones). Check MAX SDO->GPIO38, MAX CS->GPIO26, 3V3/GND, and 2-wire jumper.");
+        Serial.println("[PT100] Startup probe indicates no active MISO driver (all ones). Check MAX SDO->GPIO38, MAX CS->GPIO26, 3V3/GND, and RTD wiring/jumper mode.");
     }
 
     Serial.printf("[PT100] Hardware SPI shared pins: SCK=%d MISO=%d MOSI=%d CS=%d\n",
@@ -76,7 +104,8 @@ void ModbusService::init()
                   MAX31865_MISO,
                   MAX31865_MOSI,
                   MAX31865_CS);
-    Serial.printf("[PT100] PT100 setup: 2-wire, Rref=%.1f ohm, Rnom=%.1f ohm\n",
+    Serial.printf("[PT100] PT100 setup: %s, Rref=%.1f ohm, Rnom=%.1f ohm\n",
+                  configured_pt100_wire_mode_label(),
                   static_cast<double>(MAX31865_RREF),
                   static_cast<double>(MAX31865_RTD_NOMINAL));
 }
@@ -261,7 +290,7 @@ void ModbusService::poll(AppState &app_state)
 
         print_adafruit_style_diagnostics(raw_rtd, NAN, MAX31865_RREF);
 
-        Serial.println("[PT100] Hint: open wiring, wrong 2-wire jumper, bad reference resistor, or missing PT100 element are the usual causes.");
+        Serial.println("[PT100] Hint: open wiring, wrong RTD wire-mode jumper, bad reference resistor, or missing PT100 element are the usual causes.");
     }
     else if (fault_bits != 0)
     {

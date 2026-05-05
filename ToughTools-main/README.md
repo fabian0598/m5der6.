@@ -7,7 +7,7 @@ The current implementation uses one shared hardware SPI bus for SD and MAX31865.
 ## Features
 
 - PT100 temperature readout via MAX31865 over one shared hardware SPI bus
-- 2-wire PT100 configuration with Adafruit MAX31865
+- 3-wire PT100 configuration with Adafruit MAX31865
 - Timer logic based on configurable threshold
 - SD logging with per-boot sessions and file rotation
 - macOS live capture fallback when no SD is inserted
@@ -38,7 +38,7 @@ pio device monitor -b 115200
 ## Real PT100 Temperature Instead Of Simulation
 
 The current code reads a real PT100 through a MAX31865 module over SPI.
-The sensor is configured as a 2-wire PT100 with a 430 ohm reference resistor.
+The sensor is configured as a 3-wire PT100 with a 430 ohm reference resistor.
 
 ### 0) Shared SPI bus rules
 
@@ -67,7 +67,7 @@ Practical effect:
 
 ### 1) Hardware wiring
 
-Use the exact MAX31865 wiring below:
+Use the exact MAX31865-to-M5 wiring below. This SPI wiring does not change between 2-wire and 3-wire PT100 sensors:
 
 - Orange -> GND (Ground, kein GPIO)
 - Gelb -> VIN (Versorgung, kein GPIO)
@@ -81,11 +81,15 @@ The internal SD card uses the same SCK/MISO/MOSI lines and its own CS on GPIO4.
 
 Power the MAX31865 module from 3.3V on the ESP32 side. Use 5V only if your specific MAX31865 board has a regulator and is documented for 5V input.
 
-The PT100 itself must be wired to the MAX31865 in the sensor's 2-wire configuration.
+The PT100 itself must be wired to the MAX31865 in the sensor's 3-wire RTD configuration. On typical MAX31865 breakout boards this means using the board's documented 3-wire terminal wiring and enabling/soldering the 3-wire jumper or bridge if the board requires it.
 
 ### 2) Config switch from simulation to real mode
 
-In include/config.h:
+In `include/config.h`:
+
+```cpp
+constexpr Pt100WireMode PT100_WIRE_MODE = Pt100WireMode::ThreeWire;
+```
 
 
 ### 3) Current real read implementation
@@ -203,7 +207,7 @@ Main constants in include/config.h:
 ### No real PT100 temperature yet
 
 1. Check the MAX31865 SPI wiring and the CS/SCK/MISO/MOSI pins.
-2. Verify the PT100 is connected in 2-wire mode on the module.
+2. Verify the PT100 is connected in 3-wire mode on the module and the MAX31865 board's 3-wire jumper/bridge is set correctly.
 3. Verify the board is powered from 3.3 V, not 5 V.
 4. Check monitor output for `[PT100] MAX31865 fault:`.
 5. If the temperature looks off, verify `MAX31865_RREF` matches the actual reference resistor on the module.

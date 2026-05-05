@@ -13,7 +13,7 @@ class ModbusService
 {
 public:
     /**
-     * Initialize SPI and the MAX31865 for a 2-1 PT100 sensor.
+     * Initialize SPI and the MAX31865 for the configured PT100 wire mode.
      */
     void init();
 
