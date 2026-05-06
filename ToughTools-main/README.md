@@ -211,7 +211,7 @@ Main constants in include/config.h:
 3. Verify the board is powered from 3.3 V, not 5 V.
 4. Check monitor output for `[PT100] MAX31865 fault:`.
 5. If the temperature looks off, verify `MAX31865_RREF` matches the actual reference resistor on the module.
-6. If the reading is consistently too high or too low by the same amount, set `PT100_CALIBRATION_OFFSET_C` to the negative of that difference.
+6. If the reading is consistently too high or too low, verify `MAX31865_RREF`, the PT100 wiring mode, and the actual reference resistor on the MAX31865 board.
 
 ### Not writing to SD
 
@@ -235,35 +235,15 @@ If you see faults like `0x08` or `0x18` only around SD writes, that usually mean
 3. The code keeps the last valid temperature visible for short disturbances and only marks the sensor lost after repeated failures.
 4. The MAX31865 read path retries once after `clearFault()` before giving up.
 
-## Calibration
+## RTD Reference Values
 
-The PT100 sensor has been calibrated against reference measurements at multiple temperatures.
-
-### Calibration Data
+The PT100 sensor was checked against reference resistance values at multiple temperatures.
 
 **Hardware Reference:**
 - PT100 resistance at 22.1°C: **108.8 Ω** (theoretical: ~108.6 Ω)
 - PT100 resistance at 40.0°C: **115.6 Ω** (theoretical: ~115.5 Ω)
 - PT100 resistance at 70.0°C: **127.4 Ω** (theoretical: ~127.2 Ω)
 
-**Temperature Measurements & Verified Offset:**
-
-| Reference Temperature | Raw Reading | Corrected Reading | Applied Offset |
-|-------|----------|-----------|-------|
-| Room temperature (22.1°C) | 27.6°C | 22.1°C | -5.5°C |
-| Lukewarm water (40.0°C) | 45.5°C | 40.0°C | -5.5°C |
-| Hot water (70.0°C) | 75.5°C | 70.0°C | -5.5°C |
-
-**Conclusion:** The offset is **constant across the entire operating range** (-5.5°C). A simple software offset calibration is sufficient; no linear scaling factor is needed.
-
-### Applying Calibration
-
-Set in `include/config.h`:
-
-```cpp
-constexpr float PT100_CALIBRATION_OFFSET_C = -5.5f;
-```
-
-This offset is applied automatically to all temperature readings in `src/modbus_service.cpp`. Raw temperatures are logged before offset for diagnostics.
+No software temperature offset is applied. The firmware uses the raw temperature calculated by the Adafruit MAX31865 library from `MAX31865_RTD_NOMINAL` and `MAX31865_RREF`.
 
 ## References

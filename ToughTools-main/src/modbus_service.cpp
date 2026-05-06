@@ -177,7 +177,7 @@ bool ModbusService::read_temperature(float &temperature_out, float &raw_temperat
     }
 
     raw_temperature_out = raw_temperature;
-    temperature_out = raw_temperature + PT100_CALIBRATION_OFFSET_C;
+    temperature_out = raw_temperature;
     return true;
 }
 
@@ -247,11 +247,6 @@ void ModbusService::poll(AppState &app_state)
     {
         Serial.printf("[PT100] Fault register: 0x%02X\n", static_cast<unsigned int>(fault_bits));
         print_adafruit_style_diagnostics(raw_rtd, raw_temperature, MAX31865_RREF);
-        if (PT100_CALIBRATION_OFFSET_C != 0.0f)
-        {
-            Serial.printf("[PT100] Calibration offset applied: %.2f C\n", static_cast<double>(PT100_CALIBRATION_OFFSET_C));
-            Serial.printf("[PT100] Calibrated temperature: %.2f C\n", static_cast<double>(temperature));
-        }
         app_state.current_temperature = temperature;
         app_state.last_valid_temperature = temperature;
         app_state.temperature_valid = true;

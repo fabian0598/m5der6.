@@ -18,7 +18,6 @@
 
 constexpr float MAX31865_RREF = 430.0f;             // Reference resistor on the MAX31865 board
 constexpr float MAX31865_RTD_NOMINAL = 100.0f;      // PT100 nominal resistance
-constexpr float PT100_CALIBRATION_OFFSET_C = -5.5f; // Subtract this offset after hardware calibration
 
 enum class Pt100WireMode : uint8_t
 {
