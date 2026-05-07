@@ -154,7 +154,21 @@ If `wifi_secrets.h` contains valid WLAN credentials, the firmware starts a small
 [Backup] HTTP server ready: http://192.168.x.x:80/
 ```
 
-Download all exposed SD files from macOS:
+Open the URL in a browser and click **Download full backup**. The M5 streams a TAR archive containing:
+
+```text
+/settings.csv
+/logs/time/*.csv
+/logs/event/*.csv
+```
+
+On macOS, unpack the downloaded archive with:
+
+```bash
+tar -xf m5_sd_backup.tar
+```
+
+Alternatively, download all exposed SD files into a local folder from the command line:
 
 ```bash
 python3 tools/download_backup.py http://192.168.x.x ./m5_sd_backup
@@ -178,6 +192,12 @@ Individual files are served through:
 
 ```text
 /download?path=/logs/time/example.csv
+```
+
+The single browser archive is served through:
+
+```text
+/backup.tar
 ```
 
 The firmware holds the shared SPI lock while reading SD files, so PT100 polling and normal logging wait until the active HTTP file transfer is done.

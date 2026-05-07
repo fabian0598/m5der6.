@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <SD.h>
 #include <WiFi.h>
+#include <cstring>
 
 namespace
 {
@@ -100,6 +101,117 @@ namespace
 
         directory.close();
     }
+
+    void write_octal_field(char *target, size_t target_size, unsigned long value)
+    {
+        snprintf(target, target_size, "%0*lo", static_cast<int>(target_size - 1), value);
+    }
+
+    bool build_tar_header(char header[512], const String &archive_path, size_t file_size)
+    {
+        if (archive_path.length() == 0 || archive_path.length() > 100)
+        {
+            return false;
+        }
+
+        memset(header, 0, 512);
+        strncpy(header, archive_path.c_str(), 100);
+        write_octal_field(header + 100, 8, 0644);
+        write_octal_field(header + 108, 8, 0);
+        write_octal_field(header + 116, 8, 0);
+        write_octal_field(header + 124, 12, static_cast<unsigned long>(file_size));
+        write_octal_field(header + 136, 12, millis() / 1000UL);
+        memset(header + 148, ' ', 8);
+        header[156] = '0';
+        memcpy(header + 257, "ustar", 5);
+        memcpy(header + 263, "00", 2);
+
+        unsigned int checksum = 0;
+        for (size_t i = 0; i < 512; ++i)
+        {
+            checksum += static_cast<uint8_t>(header[i]);
+        }
+        snprintf(header + 148, 8, "%06o", checksum);
+        header[154] = '\0';
+        header[155] = ' ';
+        return true;
+    }
+
+    bool stream_file_as_tar_entry(WiFiClient &client, const String &path)
+    {
+        File file = SD.open(path, FILE_READ);
+        if (!file || file.isDirectory())
+        {
+            if (file)
+            {
+                file.close();
+            }
+            return false;
+        }
+
+        const String archive_path = path.startsWith("/") ? path.substring(1) : path;
+        char header[512];
+        if (!build_tar_header(header, archive_path, file.size()))
+        {
+            file.close();
+            return false;
+        }
+
+        client.write(reinterpret_cast<const uint8_t *>(header), sizeof(header));
+
+        uint8_t buffer[256];
+        size_t bytes_written = 0;
+        while (file.available())
+        {
+            const size_t bytes_read = file.read(buffer, sizeof(buffer));
+            if (bytes_read == 0)
+            {
+                break;
+            }
+            client.write(buffer, bytes_read);
+            bytes_written += bytes_read;
+        }
+        file.close();
+
+        const size_t padding = (512 - (bytes_written % 512)) % 512;
+        if (padding > 0)
+        {
+            uint8_t zeroes[512] = {0};
+            client.write(zeroes, padding);
+        }
+        return true;
+    }
+
+    void stream_directory_as_tar(WiFiClient &client, const char *directory_path)
+    {
+        File directory = SD.open(directory_path);
+        if (!directory || !directory.isDirectory())
+        {
+            if (directory)
+            {
+                directory.close();
+            }
+            return;
+        }
+
+        File entry = directory.openNextFile();
+        while (entry)
+        {
+            if (!entry.isDirectory())
+            {
+                const String path = entry.path();
+                entry.close();
+                stream_file_as_tar_entry(client, path);
+            }
+            else
+            {
+                entry.close();
+            }
+            entry = directory.openNextFile();
+        }
+
+        directory.close();
+    }
 }
 
 BackupServer::BackupServer() : server(HTTP_BACKUP_SERVER_PORT)
@@ -140,6 +252,7 @@ void BackupServer::configure_routes()
     server.on("/", HTTP_GET, [this]() { handle_root(); });
     server.on("/manifest.json", HTTP_GET, [this]() { handle_manifest(); });
     server.on("/download", HTTP_GET, [this]() { handle_download(); });
+    server.on("/backup.tar", HTTP_GET, [this]() { handle_backup_tar(); });
     server.onNotFound([this]() { handle_not_found(); });
 }
 
@@ -149,9 +262,11 @@ void BackupServer::handle_root()
         200,
         "text/html",
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>M5 Backup</title></head>"
-        "<body><h1>M5 Backup</h1>"
-        "<p><a href=\"/manifest.json\">manifest.json</a></p>"
-        "<p>Use tools/download_backup.py with this device URL to download all files.</p>"
+        "<body style=\"font-family:sans-serif;max-width:620px;margin:32px auto;line-height:1.45\">"
+        "<h1>M5 Backup</h1>"
+        "<p>Download settings, time logs, and event logs from the inserted SD card.</p>"
+        "<p><a href=\"/backup.tar\" style=\"display:inline-block;padding:10px 14px;background:#0b6;color:white;text-decoration:none;border-radius:6px\">Download full backup</a></p>"
+        "<p><a href=\"/manifest.json\">View manifest</a></p>"
         "</body></html>");
 }
 
@@ -219,6 +334,33 @@ void BackupServer::handle_download()
         "attachment; filename=\"" + filename_for_path(path) + "\"");
     server.streamFile(file, content_type_for_path(path));
     file.close();
+}
+
+void BackupServer::handle_backup_tar()
+{
+    SpiBusLock bus_lock(SpiBusOwner::Sd);
+
+    if (SD.cardType() == CARD_NONE)
+    {
+        server.send(503, "text/plain", "sd unavailable");
+        return;
+    }
+
+    WiFiClient client = server.client();
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/x-tar");
+    client.println("Content-Disposition: attachment; filename=\"m5_sd_backup.tar\"");
+    client.println("Connection: close");
+    client.println();
+
+    stream_file_as_tar_entry(client, SETTINGS_FILE_PATH);
+    stream_file_as_tar_entry(client, TIME_LOG_FILE_PATH);
+    stream_file_as_tar_entry(client, EVENT_LOG_FILE_PATH);
+    stream_directory_as_tar(client, TIME_LOG_DIR_PATH);
+    stream_directory_as_tar(client, EVENT_LOG_DIR_PATH);
+
+    uint8_t end_blocks[1024] = {0};
+    client.write(end_blocks, sizeof(end_blocks));
 }
 
 void BackupServer::handle_not_found()

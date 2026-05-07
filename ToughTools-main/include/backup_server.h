@@ -19,5 +19,6 @@ private:
     void handle_root();
     void handle_manifest();
     void handle_download();
+    void handle_backup_tar();
     void handle_not_found();
 };
