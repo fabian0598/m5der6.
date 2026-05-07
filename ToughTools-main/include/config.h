@@ -57,7 +57,7 @@ constexpr const char *TIME_LOG_FILE_PATH = "/time_log.csv";
 constexpr const char *EVENT_LOG_FILE_PATH = "/event_log.csv";
 constexpr const char *SETTINGS_FILE_PATH = "/settings.csv";
 constexpr const char *TIME_LOG_DIR_PATH = "/logs/time";
-constexpr const char *EVENT_LOG_DIR_PATH = "/logs/event";
+constexpr const char *EVENT_LOG_DIR_PATH = "/logs/events";
 constexpr unsigned long LOG_FILE_MAX_ENTRIES = 1000;
 // SD Card Pins - fixed hardware SPI wiring on M5Stack Tough microSD slot
 constexpr int SD_CARD_CS_PIN = 4;

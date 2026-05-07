@@ -21,6 +21,8 @@ namespace
     constexpr unsigned long SD_REINIT_COOLDOWN_MS = 30000UL;
     // Keep this short so display updates stay responsive while still decoupling SD/MAX traffic.
     constexpr unsigned long SENSOR_POLL_DEFER_AFTER_SD_WRITE_MS = 280UL;
+    constexpr const char *TIME_LOG_HEADER = "timestamp,temperature,time_id";
+    constexpr const char *EVENT_LOG_HEADER = "timestamp,event,elapsed,temperature,event_id";
 
     void ensure_sd_spi_active()
     {
@@ -377,7 +379,7 @@ bool Logger::ensure_log_file_locked(bool for_time_log)
 {
     ensure_sd_spi_active();
     const char *path = for_time_log ? current_time_log_path : current_event_log_path;
-    const char *header = for_time_log ? "timestamp,temperature,time_id" : "timestamp,event,elapsed,temperature,event_id";
+    const char *header = for_time_log ? TIME_LOG_HEADER : EVENT_LOG_HEADER;
 
     if (path[0] == '\0')
     {
@@ -408,6 +410,53 @@ bool Logger::ensure_log_file_locked(bool for_time_log)
         strlcpy(last_announced_path, path, sizeof(current_time_log_path));
         Serial.printf("[Logger] New %s file: %s\n", for_time_log ? "time" : "event", path);
     }
+    return true;
+}
+
+bool Logger::ensure_legacy_event_log_file_locked()
+{
+    ensure_sd_spi_active();
+    if (SD.exists(EVENT_LOG_FILE_PATH))
+    {
+        note_sd_success();
+        return true;
+    }
+
+    File file = SD.open(EVENT_LOG_FILE_PATH, FILE_WRITE);
+    if (!file)
+    {
+        Serial.printf("[Logger] Failed to create legacy event file: %s\n", EVENT_LOG_FILE_PATH);
+        return false;
+    }
+
+    file.println(EVENT_LOG_HEADER);
+    file.close();
+    note_sd_success();
+    Serial.printf("[Logger] New legacy event file: %s\n", EVENT_LOG_FILE_PATH);
+    return true;
+}
+
+bool Logger::write_event_row_locked(const char *path, const char *time_str, const char *event_name, unsigned long hours, unsigned long minutes, unsigned long seconds, const char *temperature, unsigned long event_id)
+{
+    ensure_sd_spi_active();
+    File log_file = SD.open(path, FILE_APPEND);
+    if (!log_file)
+    {
+        Serial.printf("[Logger] Failed to open event log file: %s\n", path);
+        return false;
+    }
+
+    log_file.printf("%s,%s,%02lu:%02lu:%02lu,%s,%lu\n",
+                    time_str,
+                    event_name,
+                    hours,
+                    minutes,
+                    seconds,
+                    temperature,
+                    event_id);
+    log_file.flush();
+    log_file.close();
+    note_sd_success();
     return true;
 }
 
@@ -463,9 +512,50 @@ void Logger::start_session_locked(time_t session_start_time)
     rotate_time_log_file();
     rotate_event_log_file();
 
-    if (!ensure_log_file_locked(true) || !ensure_log_file_locked(false))
+    const bool time_log_ready = ensure_log_file_locked(true);
+    const bool event_log_ready = ensure_log_file_locked(false);
+    if (!time_log_ready || !event_log_ready)
     {
         note_sd_failure_locked("start-session-create");
+    }
+
+    const char *time_str = format_timestamp(session_start_time);
+    bool wrote_session_event = false;
+    if (event_log_ready)
+    {
+        wrote_session_event = write_event_row_locked(
+            current_event_log_path,
+            time_str,
+            "SESSION_START",
+            0,
+            0,
+            0,
+            "",
+            0);
+        if (wrote_session_event)
+        {
+            event_log_entries_in_file++;
+        }
+    }
+
+    if (!wrote_session_event &&
+        ensure_legacy_event_log_file_locked() &&
+        write_event_row_locked(
+            EVENT_LOG_FILE_PATH,
+            time_str,
+            "SESSION_START",
+            0,
+            0,
+            0,
+            "",
+            0))
+    {
+        wrote_session_event = true;
+    }
+
+    if (!wrote_session_event)
+    {
+        note_sd_failure_locked("start-session-event");
     }
 }
 
@@ -575,36 +665,48 @@ void Logger::log_event(time_t timestamp, const char *event_name, unsigned long e
         rotate_event_log_file();
     }
 
-    if (!ensure_log_file_locked(false))
+    char sd_temperature[12];
+    format_temperature_field(sd_temperature, sizeof(sd_temperature), temperature, temperature_valid, "");
+
+    bool wrote_event = false;
+    if (ensure_log_file_locked(false))
     {
-        sd_io_in_progress = false;
-        sensor_poll_block_until_ms = millis() + SENSOR_POLL_DEFER_AFTER_SD_WRITE_MS;
-        return;
+        wrote_event = write_event_row_locked(
+            current_event_log_path,
+            time_str,
+            event_name,
+            hours,
+            minutes,
+            seconds,
+            sd_temperature,
+            event_id);
+        if (wrote_event)
+        {
+            event_log_entries_in_file++;
+        }
     }
 
-    ensure_sd_spi_active();
-    File log_file = SD.open(current_event_log_path, FILE_APPEND);
-    if (log_file)
+    if (!wrote_event)
     {
-        char sd_temperature[12];
-        format_temperature_field(sd_temperature, sizeof(sd_temperature), temperature, temperature_valid, "");
-        log_file.printf("%s,%s,%02lu:%02lu:%02lu,%s,%lu\n",
-                        time_str,
-                        event_name,
-                        hours,
-                        minutes,
-                        seconds,
-                        sd_temperature,
-                        event_id);
-        log_file.flush();
-        log_file.close();
-        event_log_entries_in_file++;
-        note_sd_success();
+        Serial.printf("[Logger] Event session log unavailable, falling back to %s\n", EVENT_LOG_FILE_PATH);
+        if (ensure_legacy_event_log_file_locked() &&
+            write_event_row_locked(
+                EVENT_LOG_FILE_PATH,
+                time_str,
+                event_name,
+                hours,
+                minutes,
+                seconds,
+                sd_temperature,
+                event_id))
+        {
+            wrote_event = true;
+        }
     }
-    else
+
+    if (!wrote_event)
     {
-        Serial.printf("[Logger] Failed to open event log file: %s\n", current_event_log_path);
-        note_sd_failure_locked("open-event-log");
+        note_sd_failure_locked("write-event-log");
     }
 
     sd_io_in_progress = false;

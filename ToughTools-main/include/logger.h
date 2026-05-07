@@ -69,6 +69,8 @@ private:
     bool prepare_log_directories_locked();
     bool ensure_log_file(bool for_time_log);
     bool ensure_log_file_locked(bool for_time_log);
+    bool ensure_legacy_event_log_file_locked();
+    bool write_event_row_locked(const char *path, const char *time_str, const char *event_name, unsigned long hours, unsigned long minutes, unsigned long seconds, const char *temperature, unsigned long event_id);
     void start_session_locked(time_t session_start_time);
     void rotate_time_log_file();
     void rotate_event_log_file();

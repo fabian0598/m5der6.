@@ -159,7 +159,7 @@ Open the URL in a browser and click **Download full backup**. The M5 streams a T
 ```text
 /settings.csv
 /logs/time/*.csv
-/logs/event/*.csv
+/logs/events/*.csv
 ```
 
 On macOS, unpack the downloaded archive with:
@@ -185,7 +185,7 @@ and downloads:
 ```text
 /settings.csv
 /logs/time/*.csv
-/logs/event/*.csv
+/logs/events/*.csv
 ```
 
 Individual files are served through:
@@ -207,9 +207,9 @@ Event logs are written to SD from `Info` level upward. `Debug` events are still 
 ## How To Check If And Where Data Is Saved
 
 1. Watch serial target path in each line.
-2. `[TimeLog][/logs/time/...]` or `[EventLog][/logs/event/...]` means SD write target.
+2. `[TimeLog][/logs/time/...]` or `[EventLog][/logs/events/...]` means SD write target.
 3. `[...][SERIAL_ONLY]` means no SD write, serial fallback only.
-4. For Mac capture, confirm files appear under `storage_live_output/live/logs/time` and `storage_live_output/live/logs/event`.
+4. For Mac capture, confirm files appear under `storage_live_output/live/logs/time` and `storage_live_output/live/logs/events`.
 5. If capture is restarted, previous files should appear under `storage_live_output/archive`.
 
 ## Event Log Semantics (Threshold)

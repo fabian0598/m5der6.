@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 TIME_LOG_DIR = Path("logs/time")
-EVENT_LOG_DIR = Path("logs/event")
+EVENT_LOG_DIR = Path("logs/events")
 TIME_LOG_HEADER = ["timestamp", "temperature", "time_id"]
 EVENT_LOG_HEADER = ["timestamp", "event", "elapsed", "temperature", "event_id"]
 SETTINGS_LINE = "{hours},{minutes},{seconds},{threshold:.1f}\n"
