@@ -29,6 +29,10 @@ namespace
     constexpr int LEFT_BTN_Y = 14;
     constexpr int LEFT_BTN_W = 72;
     constexpr int LEFT_BTN_H = 22;
+    constexpr int BACKUP_BTN_X = 124;
+    constexpr int BACKUP_BTN_Y = 14;
+    constexpr int BACKUP_BTN_W = 62;
+    constexpr int BACKUP_BTN_H = 22;
 
     constexpr int CONTENT_X = 12;
     constexpr int CONTENT_Y = 40;
@@ -102,6 +106,7 @@ namespace
     bool live_last_logged_temp_valid = false;
     float live_last_logged_temperature = 0.0f;
     bool live_last_below_threshold = false;
+    bool live_last_backup_server_enabled = false;
     bool logged_display_cache_valid = false;
     bool logged_display_temperature_valid = false;
     float logged_display_temperature = 0.0f;
@@ -220,13 +225,28 @@ namespace
         const bool highlighted = is_button_highlighted(x, y, w, h);
         const uint16_t fill = highlighted ? COLOR_EVENT : COLOR_BG;
         const uint16_t text = highlighted ? COLOR_BG : COLOR_TEXT_PRIMARY;
+        const int text_w = static_cast<int>(strlen(label)) * 6;
 
         M5.Display.fillRoundRect(x, y, w, h, 4, fill);
         M5.Display.drawRoundRect(x, y, w, h, 4, COLOR_TEXT_PRIMARY);
         M5.Display.setTextColor(text, fill);
         M5.Display.setTextSize(1);
-        M5.Display.setCursor(x + (w / 2) - 3, y + (h / 2) - 3);
+        M5.Display.setCursor(x + (w - text_w) / 2, y + (h / 2) - 3);
         M5.Display.print(label);
+    }
+
+    void draw_backup_button(bool enabled)
+    {
+        const bool highlighted = is_button_highlighted(BACKUP_BTN_X, BACKUP_BTN_Y, BACKUP_BTN_W, BACKUP_BTN_H);
+        const uint16_t fill = highlighted ? COLOR_EVENT : (enabled ? COLOR_LOGGED_TEMP : COLOR_BG);
+        const uint16_t text = enabled ? COLOR_BG : COLOR_TEXT_PRIMARY;
+
+        M5.Display.fillRoundRect(BACKUP_BTN_X, BACKUP_BTN_Y, BACKUP_BTN_W, BACKUP_BTN_H, 4, fill);
+        M5.Display.drawRoundRect(BACKUP_BTN_X, BACKUP_BTN_Y, BACKUP_BTN_W, BACKUP_BTN_H, 4, enabled ? COLOR_LOGGED_TEMP : COLOR_TEXT_PRIMARY);
+        M5.Display.setTextColor(text, fill);
+        M5.Display.setTextSize(1);
+        M5.Display.setCursor(BACKUP_BTN_X + 21, BACKUP_BTN_Y + 8);
+        M5.Display.print("WEB");
     }
 
     void draw_content_container()
@@ -293,6 +313,7 @@ namespace
         M5.Display.fillScreen(COLOR_BG);
         draw_content_container();
         draw_small_button(LEFT_BTN_X, LEFT_BTN_Y, LEFT_BTN_W, LEFT_BTN_H, "LOG");
+        draw_backup_button(false);
         draw_log_icon(LEFT_BTN_X + 15, LEFT_BTN_Y + 11);
         draw_settings_gear_icon(RIGHT_ICON_CX, RIGHT_ICON_CY);
         M5.Display.setTextSize(1);
@@ -351,6 +372,9 @@ namespace
             app_state.last_logged_temperature_valid != live_last_logged_temp_valid ||
             (app_state.last_logged_temperature_valid && live_last_logged_temp_valid &&
              std::fabs(app_state.last_logged_temperature - live_last_logged_temperature) > 0.01f);
+        const bool backup_server_changed =
+            !live_values_cache_valid ||
+            app_state.backup_server_enabled != live_last_backup_server_enabled;
 
         if (timer_changed)
         {
@@ -504,6 +528,11 @@ namespace
             logged_display_cache_valid = true;
         }
 
+        if (backup_server_changed)
+        {
+            draw_backup_button(app_state.backup_server_enabled);
+        }
+
         live_values_cache_valid = true;
         live_last_countdown_seconds = app_state.countdown_remaining_seconds;
         live_last_temp_valid = app_state.temperature_valid;
@@ -511,6 +540,7 @@ namespace
         live_last_logged_temp_valid = app_state.last_logged_temperature_valid;
         live_last_logged_temperature = app_state.last_logged_temperature;
         live_last_below_threshold = is_below_threshold;
+        live_last_backup_server_enabled = app_state.backup_server_enabled;
     }
 
     void draw_settings_static()
@@ -700,6 +730,13 @@ void DisplayService::update(AppState &app_state)
                 request_redraw();
                 live_static_drawn = false;
                 logs_static_drawn = false;
+                invalidate_live_dynamic_cache();
+            }
+            else if (td.wasPressed() && hit_rect_soft(td.x, td.y, BACKUP_BTN_X, BACKUP_BTN_Y, BACKUP_BTN_W, BACKUP_BTN_H, 10))
+            {
+                app_state.backup_server_enabled = !app_state.backup_server_enabled;
+                set_button_feedback(BACKUP_BTN_X, BACKUP_BTN_Y, BACKUP_BTN_W, BACKUP_BTN_H);
+                request_redraw();
                 invalidate_live_dynamic_cache();
             }
             else if (td.wasHold() && is_in_right_icon_hitbox(td.x, td.y))

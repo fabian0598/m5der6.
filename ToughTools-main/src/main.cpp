@@ -688,8 +688,9 @@ void loop()
     {
         Serial.println("[Time] Background NTP sync OK");
     }
-    backup_server.begin_if_ready();
+    backup_server.set_enabled(app_state.backup_server_enabled);
     backup_server.handle();
+    app_state.backup_server_enabled = backup_server.is_enabled();
 
     if (ENABLE_NTP_TIME_SYNC && !ntp_sync_in_progress() && ntp_sync_state == NtpSyncState::Idle && now >= ntp_next_attempt_ms)
     {

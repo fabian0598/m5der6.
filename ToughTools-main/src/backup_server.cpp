@@ -235,24 +235,67 @@ BackupServer::BackupServer() : server(HTTP_BACKUP_SERVER_PORT)
 {
 }
 
+void BackupServer::set_enabled(bool requested_enabled)
+{
+    if (!ENABLE_HTTP_BACKUP_SERVER)
+    {
+        requested_enabled = false;
+    }
+
+    if (requested_enabled == enabled)
+    {
+        if (enabled)
+        {
+            begin_if_ready();
+        }
+        return;
+    }
+
+    if (requested_enabled)
+    {
+        active_until_ms = millis() + HTTP_BACKUP_ACTIVE_WINDOW_MS;
+        enabled = true;
+        begin_if_ready();
+        return;
+    }
+
+    enabled = false;
+    stop();
+}
+
 void BackupServer::begin_if_ready()
 {
-    if (!ENABLE_HTTP_BACKUP_SERVER || running || WiFi.status() != WL_CONNECTED)
+    if (!ENABLE_HTTP_BACKUP_SERVER || !enabled || running || WiFi.status() != WL_CONNECTED)
     {
         return;
     }
 
-    configure_routes();
+    if (!routes_configured)
+    {
+        configure_routes();
+        routes_configured = true;
+    }
     server.begin();
     running = true;
     Serial.printf(
-        "[Backup] HTTP server ready: http://%s:%u/\n",
+        "[Backup] HTTP server ready for %lu s: http://%s:%u/\n",
+        HTTP_BACKUP_ACTIVE_WINDOW_MS / 1000UL,
         WiFi.localIP().toString().c_str(),
         HTTP_BACKUP_SERVER_PORT);
 }
 
 void BackupServer::handle()
 {
+    if (enabled && active_until_ms != 0 && static_cast<long>(millis() - active_until_ms) >= 0)
+    {
+        Serial.println("[Backup] HTTP server timeout, disabling");
+        enabled = false;
+        stop();
+        return;
+    }
+
+    begin_if_ready();
+
     if (running)
     {
         server.handleClient();
@@ -264,6 +307,11 @@ bool BackupServer::is_running() const
     return running;
 }
 
+bool BackupServer::is_enabled() const
+{
+    return enabled;
+}
+
 void BackupServer::configure_routes()
 {
     server.on("/", HTTP_GET, [this]() { handle_root(); });
@@ -273,8 +321,36 @@ void BackupServer::configure_routes()
     server.onNotFound([this]() { handle_not_found(); });
 }
 
+bool BackupServer::require_auth()
+{
+    if (server.authenticate(HTTP_BACKUP_AUTH_USER, HTTP_BACKUP_AUTH_PASSWORD))
+    {
+        return true;
+    }
+
+    server.requestAuthentication(BASIC_AUTH, "M5 Backup");
+    return false;
+}
+
+void BackupServer::stop()
+{
+    if (!running)
+    {
+        return;
+    }
+
+    server.stop();
+    running = false;
+    Serial.println("[Backup] HTTP server stopped");
+}
+
 void BackupServer::handle_root()
 {
+    if (!require_auth())
+    {
+        return;
+    }
+
     server.send(
         200,
         "text/html",
@@ -289,6 +365,11 @@ void BackupServer::handle_root()
 
 void BackupServer::handle_manifest()
 {
+    if (!require_auth())
+    {
+        return;
+    }
+
     SpiBusLock bus_lock(SpiBusOwner::Sd);
 
     if (SD.cardType() == CARD_NONE)
@@ -314,6 +395,11 @@ void BackupServer::handle_manifest()
 
 void BackupServer::handle_download()
 {
+    if (!require_auth())
+    {
+        return;
+    }
+
     if (!server.hasArg("path"))
     {
         server.send(400, "text/plain", "missing path");
@@ -355,6 +441,11 @@ void BackupServer::handle_download()
 
 void BackupServer::handle_backup_tar()
 {
+    if (!require_auth())
+    {
+        return;
+    }
+
     SpiBusLock bus_lock(SpiBusOwner::Sd);
 
     if (SD.cardType() == CARD_NONE)
@@ -382,5 +473,10 @@ void BackupServer::handle_backup_tar()
 
 void BackupServer::handle_not_found()
 {
+    if (!require_auth())
+    {
+        return;
+    }
+
     server.send(404, "text/plain", "not found");
 }
