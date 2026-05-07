@@ -42,6 +42,23 @@ namespace
         return "m5_backup_file";
     }
 
+    String child_path_for_directory_entry(const char *directory_path, const File &entry)
+    {
+        String entry_path = entry.path();
+        const String directory_prefix = String(directory_path) + "/";
+        if (entry_path.startsWith(directory_prefix))
+        {
+            return entry_path;
+        }
+
+        if (entry_path.length() == 0)
+        {
+            entry_path = entry.name();
+        }
+
+        return directory_prefix + filename_for_path(entry_path);
+    }
+
     void append_json_file(WebServer &server, const String &path, size_t size, bool &first)
     {
         if (!first)
@@ -93,7 +110,7 @@ namespace
         {
             if (!entry.isDirectory())
             {
-                append_json_file(server, entry.path(), entry.size(), first);
+                append_json_file(server, child_path_for_directory_entry(directory_path, entry), entry.size(), first);
             }
             entry.close();
             entry = directory.openNextFile();
@@ -199,7 +216,7 @@ namespace
         {
             if (!entry.isDirectory())
             {
-                const String path = entry.path();
+                const String path = child_path_for_directory_entry(directory_path, entry);
                 entry.close();
                 stream_file_as_tar_entry(client, path);
             }

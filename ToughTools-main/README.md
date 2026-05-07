@@ -202,6 +202,8 @@ The single browser archive is served through:
 
 The firmware holds the shared SPI lock while reading SD files, so PT100 polling and normal logging wait until the active HTTP file transfer is done.
 
+Event logs are written to SD from `Info` level upward. `Debug` events are still shown on Serial/display only, so frequent noise such as sensor reconnect chatter does not fill the SD card.
+
 ## How To Check If And Where Data Is Saved
 
 1. Watch serial target path in each line.

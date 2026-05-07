@@ -81,7 +81,7 @@ enum class LogLevel : uint8_t
 
 constexpr LogLevel SERIAL_LOG_MIN_LEVEL = LogLevel::Debug;
 constexpr LogLevel DISPLAY_LOG_MIN_LEVEL = LogLevel::Debug;
-constexpr LogLevel SD_EVENT_LOG_MIN_LEVEL = LogLevel::Warning;
+constexpr LogLevel SD_EVENT_LOG_MIN_LEVEL = LogLevel::Info;
 
 // Display settings
 constexpr int DISPLAY_WIDTH = 320;
