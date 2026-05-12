@@ -688,6 +688,9 @@ void loop()
     {
         Serial.println("[Time] Background NTP sync OK");
     }
+
+    // The display toggles the desired WEB state. The server owns timeout/auth
+    // behavior and reports back if the window expired or failed to start.
     backup_server.set_enabled(app_state.backup_server_enabled);
     backup_server.handle();
     app_state.backup_server_enabled = backup_server.is_enabled();

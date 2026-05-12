@@ -69,12 +69,14 @@ Practical effect:
 
 Use the exact MAX31865-to-M5 wiring below. This SPI wiring does not change between 2-wire and 3-wire PT100 sensors:
 
-- Orange -> GND (Ground, kein GPIO)
-- Gelb -> VIN (Versorgung, kein GPIO)
-- Gruen -> SCK (GPIO18)
-- Blau -> MISO (GPIO38)
-- Lila -> MOSI (GPIO23)
-- Weiss -> CS (GPIO26)
+| MAX31865 signal | M5Stack Tough connection |
+|---|---|
+| GND | GND |
+| VIN | 3V3 preferred |
+| SCK / CLK | GPIO18 |
+| SDO / MISO | GPIO38 |
+| SDI / MOSI | GPIO23 |
+| CS | GPIO26 |
 
 The internal SD card uses the same SCK/MISO/MOSI lines and its own CS on GPIO4.
 
@@ -83,19 +85,15 @@ Power the MAX31865 module from 3.3V on the ESP32 side. Use 5V only if your speci
 
 The PT100 itself must be wired to the MAX31865 in the sensor's 3-wire RTD configuration. On typical MAX31865 breakout boards this means using the board's documented 3-wire terminal wiring and enabling/soldering the 3-wire jumper or bridge if the board requires it.
 
-### 2) Config switch from simulation to real mode
+### 2) PT100 wire-mode configuration
 
-In `include/config.h`:
+The current branch is configured for 3-wire PT100 sensors in `include/config.h`:
 
 ```cpp
 constexpr Pt100WireMode PT100_WIRE_MODE = Pt100WireMode::ThreeWire;
 ```
 
-
-### 3) Current real read implementation
-
-Current code status in src/modbus_service.cpp:
-
+The active setup code maps this to `MAX31865_3WIRE` in `src/modbus_service.cpp`.
 
 If your MAX31865 board uses a different reference resistor, adapt only the reference value in `config.h`.
 
@@ -110,6 +108,13 @@ If your MAX31865 board uses a different reference resistor, adapt only the refer
 ### Mode A: SD inserted (device-side storage)
 
 Firmware writes on SD with this structure:
+
+```text
+/settings.csv
+/logs/time/time_YYYYMMDD_HHMMSS_001.csv
+/logs/events/event_YYYYMMDD_HHMMSS_001.csv
+/event_log.csv              # fallback only, if session event file cannot be written
+```
 
 
 Rules:
@@ -132,9 +137,17 @@ pio device monitor -b 115200 | python3 tools/serial_live_capture.py
 
 Or via VS Code task:
 
+```bash
+pio device monitor -b 115200 | python3 tools/serial_live_capture.py
+```
 
 Mac output structure:
 
+```text
+storage_live_output/live/logs/time/*.csv
+storage_live_output/live/logs/events/*.csv
+storage_live_output/archive/capture_YYYYMMDD_HHMMSS/
+```
 
 On every new capture start, old `live` content is moved to timestamped archive folder.
 
@@ -216,6 +229,18 @@ Event logs are written to SD from `Info` level upward. `Debug` events are still 
 
 Threshold transition events are now threshold-neutral:
 
+```text
+TEMP_BELOW_THRESHOLD
+TEMP_ABOVE_THRESHOLD
+TIMER_EXPIRED
+TIMER_RESTART
+SENSOR_OK
+SENSOR_LOST
+SETTINGS_SAVED
+SHUTDOWN
+BOOT
+SESSION_START
+```
 
 This avoids hardcoding a specific value in event names.
 
@@ -223,6 +248,15 @@ This avoids hardcoding a specific value in event names.
 
 Main constants in include/config.h:
 
+```cpp
+constexpr Pt100WireMode PT100_WIRE_MODE = Pt100WireMode::ThreeWire;
+constexpr unsigned long LOG_INTERVAL_MS = 60000;
+constexpr float TEMPERATURE_RESTART_THRESHOLD = 70.0f;
+constexpr const char *TIME_LOG_DIR_PATH = "/logs/time";
+constexpr const char *EVENT_LOG_DIR_PATH = "/logs/events";
+constexpr LogLevel SD_EVENT_LOG_MIN_LEVEL = LogLevel::Info;
+constexpr unsigned long HTTP_BACKUP_ACTIVE_WINDOW_MS = 10UL * 60UL * 1000UL;
+```
 
 ## Troubleshooting
 

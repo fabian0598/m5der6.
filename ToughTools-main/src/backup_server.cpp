@@ -11,6 +11,7 @@ namespace
 {
     bool is_backup_path_allowed(const String &path)
     {
+        // Keep /download scoped to known firmware-owned files and log folders.
         if (!path.startsWith("/") || path.indexOf("..") >= 0 || path.indexOf("//") >= 0)
         {
             return false;
@@ -44,6 +45,8 @@ namespace
 
     String child_path_for_directory_entry(const char *directory_path, const File &entry)
     {
+        // SD entry.path() is not consistent across all ESP32 SD backends. Rebuild
+        // the absolute path from the directory plus entry filename when needed.
         String entry_path = entry.path();
         const String directory_prefix = String(directory_path) + "/";
         if (entry_path.startsWith(directory_prefix))
@@ -126,6 +129,7 @@ namespace
 
     bool build_tar_header(char header[512], const String &archive_path, size_t file_size)
     {
+        // Minimal ustar header: enough for macOS tar to unpack the streamed backup.
         if (archive_path.length() == 0 || archive_path.length() > 100)
         {
             return false;
@@ -237,6 +241,7 @@ BackupServer::BackupServer() : server(HTTP_BACKUP_SERVER_PORT)
 
 void BackupServer::set_enabled(bool requested_enabled)
 {
+    // The display owns the desired state; this service owns the actual socket.
     if (!ENABLE_HTTP_BACKUP_SERVER)
     {
         requested_enabled = false;
@@ -253,6 +258,7 @@ void BackupServer::set_enabled(bool requested_enabled)
 
     if (requested_enabled)
     {
+        // Each manual enable opens a fresh time-limited backup window.
         active_until_ms = millis() + HTTP_BACKUP_ACTIVE_WINDOW_MS;
         enabled = true;
         begin_if_ready();
@@ -286,6 +292,7 @@ void BackupServer::begin_if_ready()
 
 void BackupServer::handle()
 {
+    // Time out the HTTP surface even if the user forgets to turn WEB off.
     if (enabled && active_until_ms != 0 && static_cast<long>(millis() - active_until_ms) >= 0)
     {
         Serial.println("[Backup] HTTP server timeout, disabling");
@@ -323,6 +330,8 @@ void BackupServer::configure_routes()
 
 bool BackupServer::require_auth()
 {
+    // Basic Auth is deliberately lightweight for the ESP32; it protects casual
+    // local access but is not encrypted without HTTPS.
     if (server.authenticate(HTTP_BACKUP_AUTH_USER, HTTP_BACKUP_AUTH_PASSWORD))
     {
         return true;
@@ -370,6 +379,7 @@ void BackupServer::handle_manifest()
         return;
     }
 
+    // Manifest and downloads read SD; hold the shared SPI bus away from MAX31865.
     SpiBusLock bus_lock(SpiBusOwner::Sd);
 
     if (SD.cardType() == CARD_NONE)
@@ -446,6 +456,7 @@ void BackupServer::handle_backup_tar()
         return;
     }
 
+    // The archive is streamed straight from SD while the SPI lock is held.
     SpiBusLock bus_lock(SpiBusOwner::Sd);
 
     if (SD.cardType() == CARD_NONE)
@@ -454,6 +465,8 @@ void BackupServer::handle_backup_tar()
         return;
     }
 
+    // Send raw HTTP headers and then raw tar bytes. Using server.send() here can
+    // enable chunking, which would corrupt the tar stream for normal unpackers.
     WiFiClient client = server.client();
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: application/x-tar");

@@ -275,6 +275,8 @@ bool Logger::prepare_log_directories_locked()
     ensure_sd_spi_active();
     constexpr const char *LOG_ROOT_DIR_PATH = "/logs";
 
+    // Keep time and event logs in separate folders so backup downloads can
+    // include both groups without guessing file names.
     if (!SD.exists(LOG_ROOT_DIR_PATH) && !SD.mkdir(LOG_ROOT_DIR_PATH))
     {
         Serial.printf("[Logger] Failed to create dir: %s\n", LOG_ROOT_DIR_PATH);
@@ -497,6 +499,7 @@ void Logger::start_session(time_t session_start_time)
 
 void Logger::start_session_locked(time_t session_start_time)
 {
+    // One boot/session gets one timestamp tag; rotation only changes the suffix.
     tm *timeinfo = localtime(&session_start_time);
     if (timeinfo != nullptr)
     {
@@ -519,6 +522,8 @@ void Logger::start_session_locked(time_t session_start_time)
         note_sd_failure_locked("start-session-create");
     }
 
+    // Write one event immediately so backups show an event file even before the
+    // first threshold/timer transition happens.
     const char *time_str = format_timestamp(session_start_time);
     bool wrote_session_event = false;
     if (event_log_ready)
@@ -630,6 +635,8 @@ void Logger::log_event(time_t timestamp, const char *event_name, unsigned long e
     char serial_temperature[12];
     format_temperature_field(serial_temperature, sizeof(serial_temperature), temperature, temperature_valid, "n/a");
 
+    // Serial/display can be more verbose than SD. The level gate keeps SD files
+    // useful while still exposing debug chatter on the live screen/monitor.
     if (should_emit_level(level, SERIAL_LOG_MIN_LEVEL))
     {
         Serial.printf("[EventLog][%s][%s] %s,%s,%02lu:%02lu:%02lu,%s,%lu\n",
@@ -688,6 +695,8 @@ void Logger::log_event(time_t timestamp, const char *event_name, unsigned long e
 
     if (!wrote_event)
     {
+        // Legacy flat file is a last-resort safety net for cards that refuse the
+        // session event path but still accept root-level appends.
         Serial.printf("[Logger] Event session log unavailable, falling back to %s\n", EVENT_LOG_FILE_PATH);
         if (ensure_legacy_event_log_file_locked() &&
             write_event_row_locked(
