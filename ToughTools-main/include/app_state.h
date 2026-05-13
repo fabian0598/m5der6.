@@ -51,6 +51,8 @@ struct AppState
     bool timer_expiry_alert_sent = false;
     unsigned int timer_expiry_alert_beeps_remaining = 0;
     unsigned long timer_expiry_alert_next_beep_ms = 0;
+    // UI request flag; main.cpp owns the actual timer mutation and event log.
+    bool manual_timer_reset_requested = false;
 
     // User-configurable setpoints (via settings page)
     unsigned int set_timer_hours = 1;

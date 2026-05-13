@@ -217,6 +217,10 @@ The firmware holds the shared SPI lock while reading SD files, so PT100 polling 
 
 Event logs are written to SD from `Info` level upward. `Debug` events are still shown on Serial/display only, so frequent noise such as sensor reconnect chatter does not fill the SD card.
 
+### Manual timer reset
+
+The live screen has an **RST** button in the top button row. Tapping it opens a confirmation dialog. Confirming with **YES** resets the active countdown to `01:00:00` and writes a `TIMER_MANUAL_RESET` event. **NO** or tapping outside the dialog leaves the timer unchanged.
+
 ## How To Check If And Where Data Is Saved
 
 1. Watch serial target path in each line.
@@ -234,6 +238,7 @@ TEMP_BELOW_THRESHOLD
 TEMP_ABOVE_THRESHOLD
 TIMER_EXPIRED
 TIMER_RESTART
+TIMER_MANUAL_RESET
 SENSOR_OK
 SENSOR_LOST
 SETTINGS_SAVED

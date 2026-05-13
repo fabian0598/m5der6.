@@ -33,6 +33,20 @@ namespace
     constexpr int BACKUP_BTN_Y = 14;
     constexpr int BACKUP_BTN_W = 62;
     constexpr int BACKUP_BTN_H = 22;
+    constexpr int TIMER_RESET_BTN_X = 202;
+    constexpr int TIMER_RESET_BTN_Y = 14;
+    constexpr int TIMER_RESET_BTN_W = 54;
+    constexpr int TIMER_RESET_BTN_H = 22;
+
+    constexpr int CONFIRM_BOX_X = 46;
+    constexpr int CONFIRM_BOX_Y = 72;
+    constexpr int CONFIRM_BOX_W = 228;
+    constexpr int CONFIRM_BOX_H = 104;
+    constexpr int CONFIRM_NO_X = CONFIRM_BOX_X + 24;
+    constexpr int CONFIRM_YES_X = CONFIRM_BOX_X + 126;
+    constexpr int CONFIRM_BTN_Y = CONFIRM_BOX_Y + 66;
+    constexpr int CONFIRM_BTN_W = 78;
+    constexpr int CONFIRM_BTN_H = 26;
 
     constexpr int CONTENT_X = 12;
     constexpr int CONTENT_Y = 40;
@@ -110,6 +124,7 @@ namespace
     bool logged_display_cache_valid = false;
     bool logged_display_temperature_valid = false;
     float logged_display_temperature = 0.0f;
+    bool timer_reset_confirm_open = false;
 
     void request_redraw()
     {
@@ -249,6 +264,30 @@ namespace
         M5.Display.print("WEB");
     }
 
+    void draw_timer_reset_button()
+    {
+        draw_small_button(TIMER_RESET_BTN_X, TIMER_RESET_BTN_Y, TIMER_RESET_BTN_W, TIMER_RESET_BTN_H, "RST");
+    }
+
+    void draw_timer_reset_confirm()
+    {
+        // Confirmation keeps the top-row reset button from changing process state
+        // on an accidental tap.
+        M5.Display.fillRoundRect(CONFIRM_BOX_X, CONFIRM_BOX_Y, CONFIRM_BOX_W, CONFIRM_BOX_H, 8, COLOR_BG);
+        M5.Display.drawRoundRect(CONFIRM_BOX_X, CONFIRM_BOX_Y, CONFIRM_BOX_W, CONFIRM_BOX_H, 8, COLOR_WARNING);
+
+        M5.Display.setTextColor(COLOR_TEXT_PRIMARY, COLOR_BG);
+        M5.Display.setTextSize(1);
+        M5.Display.setCursor(CONFIRM_BOX_X + 18, CONFIRM_BOX_Y + 16);
+        M5.Display.print("Timer auf 01:00:00 setzen?");
+        M5.Display.setTextColor(COLOR_TEXT_MUTED, COLOR_BG);
+        M5.Display.setCursor(CONFIRM_BOX_X + 18, CONFIRM_BOX_Y + 34);
+        M5.Display.print("Event wird mitgeloggt.");
+
+        draw_small_button(CONFIRM_NO_X, CONFIRM_BTN_Y, CONFIRM_BTN_W, CONFIRM_BTN_H, "NO");
+        draw_small_button(CONFIRM_YES_X, CONFIRM_BTN_Y, CONFIRM_BTN_W, CONFIRM_BTN_H, "YES");
+    }
+
     void draw_content_container()
     {
         M5.Display.fillRoundRect(CONTENT_X, CONTENT_Y, CONTENT_W, CONTENT_H, 14, COLOR_PANEL);
@@ -314,12 +353,9 @@ namespace
         draw_content_container();
         draw_small_button(LEFT_BTN_X, LEFT_BTN_Y, LEFT_BTN_W, LEFT_BTN_H, "LOG");
         draw_backup_button(false);
+        draw_timer_reset_button();
         draw_log_icon(LEFT_BTN_X + 15, LEFT_BTN_Y + 11);
         draw_settings_gear_icon(RIGHT_ICON_CX, RIGHT_ICON_CY);
-        M5.Display.setTextSize(1);
-        M5.Display.setTextColor(COLOR_TEXT_MUTED, COLOR_BG);
-        M5.Display.setCursor(220, 24);
-        M5.Display.print("SET");
 
         M5.Display.setTextColor(COLOR_TEXT_MUTED, COLOR_PANEL);
         M5.Display.setCursor(26, 58);
@@ -723,7 +759,30 @@ void DisplayService::update(AppState &app_state)
 
         if (current_view == ViewMode::Live)
         {
-            if (td.wasPressed() && hit_rect_soft(td.x, td.y, LEFT_BTN_X, LEFT_BTN_Y, LEFT_BTN_W, LEFT_BTN_H, 10))
+            if (timer_reset_confirm_open && td.wasPressed())
+            {
+                if (hit_rect_soft(td.x, td.y, CONFIRM_YES_X, CONFIRM_BTN_Y, CONFIRM_BTN_W, CONFIRM_BTN_H, 8))
+                {
+                    // Display code only raises the request; main.cpp applies the
+                    // reset so logging and timer state stay in one place.
+                    app_state.manual_timer_reset_requested = true;
+                    timer_reset_confirm_open = false;
+                    set_button_feedback(CONFIRM_YES_X, CONFIRM_BTN_Y, CONFIRM_BTN_W, CONFIRM_BTN_H);
+                    request_redraw();
+                    live_static_drawn = false;
+                    invalidate_live_dynamic_cache();
+                }
+                else if (hit_rect_soft(td.x, td.y, CONFIRM_NO_X, CONFIRM_BTN_Y, CONFIRM_BTN_W, CONFIRM_BTN_H, 8) ||
+                         !hit_rect(td.x, td.y, CONFIRM_BOX_X, CONFIRM_BOX_Y, CONFIRM_BOX_W, CONFIRM_BOX_H))
+                {
+                    timer_reset_confirm_open = false;
+                    set_button_feedback(CONFIRM_NO_X, CONFIRM_BTN_Y, CONFIRM_BTN_W, CONFIRM_BTN_H);
+                    request_redraw();
+                    live_static_drawn = false;
+                    invalidate_live_dynamic_cache();
+                }
+            }
+            else if (td.wasPressed() && hit_rect_soft(td.x, td.y, LEFT_BTN_X, LEFT_BTN_Y, LEFT_BTN_W, LEFT_BTN_H, 10))
             {
                 current_view = ViewMode::Logs;
                 set_button_feedback(LEFT_BTN_X, LEFT_BTN_Y, LEFT_BTN_W, LEFT_BTN_H);
@@ -739,9 +798,16 @@ void DisplayService::update(AppState &app_state)
                 request_redraw();
                 invalidate_live_dynamic_cache();
             }
+            else if (td.wasPressed() && hit_rect_soft(td.x, td.y, TIMER_RESET_BTN_X, TIMER_RESET_BTN_Y, TIMER_RESET_BTN_W, TIMER_RESET_BTN_H, 10))
+            {
+                timer_reset_confirm_open = true;
+                set_button_feedback(TIMER_RESET_BTN_X, TIMER_RESET_BTN_Y, TIMER_RESET_BTN_W, TIMER_RESET_BTN_H);
+                request_redraw();
+            }
             else if (td.wasHold() && is_in_right_icon_hitbox(td.x, td.y))
             {
                 current_view = ViewMode::Settings;
+                timer_reset_confirm_open = false;
                 set_button_feedback(RIGHT_ICON_CX - 14, RIGHT_ICON_CY - 12, 28, 24);
                 request_redraw();
                 settings_static_drawn = false;
@@ -861,6 +927,10 @@ void DisplayService::update(AppState &app_state)
         draw_live_static();
     }
     draw_live_dynamic(app_state);
+    if (timer_reset_confirm_open)
+    {
+        draw_timer_reset_confirm();
+    }
 }
 
 void DisplayService::updateDisplay(float temp)

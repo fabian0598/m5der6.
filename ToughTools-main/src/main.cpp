@@ -206,6 +206,26 @@ namespace
         state.timer_end_time_valid = true;
     }
 
+    unsigned long reset_timer_to_one_hour(AppState &state)
+    {
+        const unsigned long previous_remaining = state.countdown_remaining_seconds;
+
+        // Manual substrate reset is intentionally fixed to the default process
+        // hour and does not rewrite the configurable Settings timer value.
+        state.countdown_remaining_seconds = TIMER_DURATION_SECONDS;
+        state.timer_end_time = state.last_update_time + static_cast<time_t>(TIMER_DURATION_SECONDS);
+        state.timer_end_time_valid = true;
+        state.timer_expired_waiting_restart = false;
+        state.timer_expiry_alert_sent = false;
+        state.timer_expiry_alert_beeps_remaining = 0;
+        state.timer_expiry_alert_next_beep_ms = 0;
+        state.timer_should_restart = false;
+
+        return (TIMER_DURATION_SECONDS > previous_remaining)
+                   ? (TIMER_DURATION_SECONDS - previous_remaining)
+                   : 0UL;
+    }
+
     time_t build_time_to_epoch()
     {
         const char month_names[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
@@ -703,6 +723,19 @@ void loop()
     // Update current time
     // Prefer system time when valid (NTP/RTC), otherwise fallback runtime base.
     app_state.last_update_time = get_runtime_clock_time();
+
+    if (app_state.manual_timer_reset_requested)
+    {
+        app_state.manual_timer_reset_requested = false;
+        const unsigned long elapsed_before_reset = reset_timer_to_one_hour(app_state);
+        log_event_entry(
+            app_state,
+            logger,
+            "TIMER_MANUAL_RESET",
+            elapsed_before_reset,
+            app_state.current_temperature,
+            LogLevel::Info);
+    }
 
     if (time_log_write_due)
     {
