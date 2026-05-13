@@ -65,6 +65,7 @@ struct AppState
     bool backup_auth_valid = false;
     char backup_auth_user[5] = "";
     char backup_auth_password[5] = "";
+    char backup_server_ip[16] = "";
 
     // Recent log lines for settings screen preview
     char recent_logs[MAX_RECENT_LOGS][MAX_LOG_LINE_LENGTH] = {};

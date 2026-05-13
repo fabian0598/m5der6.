@@ -124,6 +124,7 @@ namespace
     bool live_last_backup_auth_valid = false;
     char live_last_backup_auth_user[5] = "";
     char live_last_backup_auth_password[5] = "";
+    char live_last_backup_server_ip[16] = "";
     bool logged_display_cache_valid = false;
     bool logged_display_temperature_valid = false;
     float logged_display_temperature = 0.0f;
@@ -269,16 +270,16 @@ namespace
 
     void draw_backup_credentials(const AppState &app_state)
     {
-        M5.Display.fillRect(188, LIVE_TIME_Y, 124, 14, COLOR_BG);
-        if (!app_state.backup_server_enabled || !app_state.backup_auth_valid)
+        M5.Display.fillRect(142, LIVE_TIME_Y, 166, 14, COLOR_BG);
+        if (!app_state.backup_server_enabled || !app_state.backup_auth_valid || app_state.backup_server_ip[0] == '\0')
         {
             return;
         }
 
         M5.Display.setTextColor(COLOR_LOGGED_TEMP, COLOR_BG);
         M5.Display.setTextSize(1);
-        M5.Display.setCursor(190, LIVE_TIME_Y);
-        M5.Display.printf("U:%s P:%s", app_state.backup_auth_user, app_state.backup_auth_password);
+        M5.Display.setCursor(144, LIVE_TIME_Y);
+        M5.Display.printf("%s U%s P%s", app_state.backup_server_ip, app_state.backup_auth_user, app_state.backup_auth_password);
     }
 
     void draw_timer_reset_button()
@@ -432,7 +433,8 @@ namespace
             !live_values_cache_valid ||
             app_state.backup_auth_valid != live_last_backup_auth_valid ||
             strncmp(app_state.backup_auth_user, live_last_backup_auth_user, sizeof(live_last_backup_auth_user)) != 0 ||
-            strncmp(app_state.backup_auth_password, live_last_backup_auth_password, sizeof(live_last_backup_auth_password)) != 0;
+            strncmp(app_state.backup_auth_password, live_last_backup_auth_password, sizeof(live_last_backup_auth_password)) != 0 ||
+            strncmp(app_state.backup_server_ip, live_last_backup_server_ip, sizeof(live_last_backup_server_ip)) != 0;
 
         if (timer_changed)
         {
@@ -609,6 +611,8 @@ namespace
         live_last_backup_auth_user[sizeof(live_last_backup_auth_user) - 1] = '\0';
         strncpy(live_last_backup_auth_password, app_state.backup_auth_password, sizeof(live_last_backup_auth_password) - 1);
         live_last_backup_auth_password[sizeof(live_last_backup_auth_password) - 1] = '\0';
+        strncpy(live_last_backup_server_ip, app_state.backup_server_ip, sizeof(live_last_backup_server_ip) - 1);
+        live_last_backup_server_ip[sizeof(live_last_backup_server_ip) - 1] = '\0';
     }
 
     void draw_settings_static()

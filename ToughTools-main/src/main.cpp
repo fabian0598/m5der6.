@@ -719,6 +719,14 @@ void loop()
     app_state.backup_auth_user[sizeof(app_state.backup_auth_user) - 1] = '\0';
     strncpy(app_state.backup_auth_password, backup_server.auth_password(), sizeof(app_state.backup_auth_password) - 1);
     app_state.backup_auth_password[sizeof(app_state.backup_auth_password) - 1] = '\0';
+    if (app_state.backup_server_enabled && WiFi.status() == WL_CONNECTED)
+    {
+        WiFi.localIP().toString().toCharArray(app_state.backup_server_ip, sizeof(app_state.backup_server_ip));
+    }
+    else
+    {
+        app_state.backup_server_ip[0] = '\0';
+    }
 
     if (ENABLE_NTP_TIME_SYNC && !ntp_sync_in_progress() && ntp_sync_state == NtpSyncState::Idle && now >= ntp_next_attempt_ms)
     {
