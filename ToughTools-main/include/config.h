@@ -102,6 +102,4 @@ constexpr time_t VALID_TIME_EPOCH_MIN = 1700000000;                          // 
 // WLAN backup server
 constexpr bool ENABLE_HTTP_BACKUP_SERVER = true;
 constexpr uint16_t HTTP_BACKUP_SERVER_PORT = 80;
-constexpr const char *HTTP_BACKUP_AUTH_USER = "hermetia";
-constexpr const char *HTTP_BACKUP_AUTH_PASSWORD = "0406";
 constexpr unsigned long HTTP_BACKUP_ACTIVE_WINDOW_MS = 10UL * 60UL * 1000UL;

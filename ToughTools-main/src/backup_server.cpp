@@ -3,6 +3,7 @@
 #include "spi_bus_lock.h"
 
 #include <Arduino.h>
+#include <esp_system.h>
 #include <SD.h>
 #include <WiFi.h>
 #include <cstring>
@@ -259,6 +260,7 @@ void BackupServer::set_enabled(bool requested_enabled)
     if (requested_enabled)
     {
         // Each manual enable opens a fresh time-limited backup window.
+        generate_credentials();
         active_until_ms = millis() + HTTP_BACKUP_ACTIVE_WINDOW_MS;
         enabled = true;
         begin_if_ready();
@@ -267,6 +269,7 @@ void BackupServer::set_enabled(bool requested_enabled)
 
     enabled = false;
     stop();
+    clear_credentials();
 }
 
 void BackupServer::begin_if_ready()
@@ -284,10 +287,12 @@ void BackupServer::begin_if_ready()
     server.begin();
     running = true;
     Serial.printf(
-        "[Backup] HTTP server ready for %lu s: http://%s:%u/\n",
+        "[Backup] HTTP server ready for %lu s: http://%s:%u/ user=%s pass=%s\n",
         HTTP_BACKUP_ACTIVE_WINDOW_MS / 1000UL,
         WiFi.localIP().toString().c_str(),
-        HTTP_BACKUP_SERVER_PORT);
+        HTTP_BACKUP_SERVER_PORT,
+        active_user,
+        active_password);
 }
 
 void BackupServer::handle()
@@ -298,6 +303,7 @@ void BackupServer::handle()
         Serial.println("[Backup] HTTP server timeout, disabling");
         enabled = false;
         stop();
+        clear_credentials();
         return;
     }
 
@@ -319,6 +325,21 @@ bool BackupServer::is_enabled() const
     return enabled;
 }
 
+const char *BackupServer::auth_user() const
+{
+    return active_user;
+}
+
+const char *BackupServer::auth_password() const
+{
+    return active_password;
+}
+
+bool BackupServer::auth_valid() const
+{
+    return credentials_valid;
+}
+
 void BackupServer::configure_routes()
 {
     server.on("/", HTTP_GET, [this]() { handle_root(); });
@@ -328,11 +349,31 @@ void BackupServer::configure_routes()
     server.onNotFound([this]() { handle_not_found(); });
 }
 
+void BackupServer::generate_credentials()
+{
+    const uint32_t random_value = esp_random();
+    const unsigned int user_code = random_value % 10000U;
+    const unsigned int password_code = (random_value / 10000U) % 10000U;
+
+    snprintf(active_user, sizeof(active_user), "%04u", user_code);
+    snprintf(active_password, sizeof(active_password), "%04u", password_code);
+    credentials_valid = true;
+
+    Serial.printf("[Backup] New login codes: user=%s pass=%s\n", active_user, active_password);
+}
+
+void BackupServer::clear_credentials()
+{
+    active_user[0] = '\0';
+    active_password[0] = '\0';
+    credentials_valid = false;
+}
+
 bool BackupServer::require_auth()
 {
     // Basic Auth is deliberately lightweight for the ESP32; it protects casual
     // local access but is not encrypted without HTTPS.
-    if (server.authenticate(HTTP_BACKUP_AUTH_USER, HTTP_BACKUP_AUTH_PASSWORD))
+    if (credentials_valid && server.authenticate(active_user, active_password))
     {
         return true;
     }

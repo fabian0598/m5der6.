@@ -161,13 +161,13 @@ python3 tools/storage_format_sim.py --reset
 
 ### Mode D: WLAN backup from inserted SD
 
-If `wifi_secrets.h` contains valid WLAN credentials, the firmware can start a small HTTP backup server after WiFi connects. Tap the **WEB** button on the live screen to enable it for 10 minutes. Tap **WEB** again to switch it off earlier. The serial monitor prints the device URL:
+If `wifi_secrets.h` contains valid WLAN credentials, the firmware can start a small HTTP backup server after WiFi connects. Tap the **WEB** button on the live screen to enable it for 10 minutes. Tap **WEB** again to switch it off earlier. Every enable creates a fresh 4-digit username and 4-digit password. The live screen shows them as `U:1234 P:5678`, and the serial monitor prints the device URL:
 
 ```text
-[Backup] HTTP server ready: http://192.168.x.x:80/
+[Backup] HTTP server ready for 600 s: http://192.168.x.x:80/ user=1234 pass=5678
 ```
 
-Open the URL in a browser, sign in with username `hermetia` and password `0406`, then click **Download full backup**. The M5 streams a TAR archive containing:
+Open the URL in a browser, sign in with the currently displayed codes, then click **Download full backup**. The M5 streams a TAR archive containing:
 
 ```text
 /settings.csv
@@ -184,7 +184,7 @@ tar -xf m5_sd_backup.tar
 Alternatively, download all exposed SD files into a local folder from the command line:
 
 ```bash
-python3 tools/download_backup.py http://192.168.x.x ./m5_sd_backup
+python3 tools/download_backup.py http://192.168.x.x ./m5_sd_backup --user 1234 --password 5678
 ```
 
 The script reads:

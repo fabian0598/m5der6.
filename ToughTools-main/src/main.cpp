@@ -714,6 +714,11 @@ void loop()
     backup_server.set_enabled(app_state.backup_server_enabled);
     backup_server.handle();
     app_state.backup_server_enabled = backup_server.is_enabled();
+    app_state.backup_auth_valid = backup_server.auth_valid();
+    strncpy(app_state.backup_auth_user, backup_server.auth_user(), sizeof(app_state.backup_auth_user) - 1);
+    app_state.backup_auth_user[sizeof(app_state.backup_auth_user) - 1] = '\0';
+    strncpy(app_state.backup_auth_password, backup_server.auth_password(), sizeof(app_state.backup_auth_password) - 1);
+    app_state.backup_auth_password[sizeof(app_state.backup_auth_password) - 1] = '\0';
 
     if (ENABLE_NTP_TIME_SYNC && !ntp_sync_in_progress() && ntp_sync_state == NtpSyncState::Idle && now >= ntp_next_attempt_ms)
     {

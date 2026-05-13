@@ -121,6 +121,9 @@ namespace
     float live_last_logged_temperature = 0.0f;
     bool live_last_below_threshold = false;
     bool live_last_backup_server_enabled = false;
+    bool live_last_backup_auth_valid = false;
+    char live_last_backup_auth_user[5] = "";
+    char live_last_backup_auth_password[5] = "";
     bool logged_display_cache_valid = false;
     bool logged_display_temperature_valid = false;
     float logged_display_temperature = 0.0f;
@@ -262,6 +265,20 @@ namespace
         M5.Display.setTextSize(1);
         M5.Display.setCursor(BACKUP_BTN_X + 21, BACKUP_BTN_Y + 8);
         M5.Display.print("WEB");
+    }
+
+    void draw_backup_credentials(const AppState &app_state)
+    {
+        M5.Display.fillRect(188, LIVE_TIME_Y, 124, 14, COLOR_BG);
+        if (!app_state.backup_server_enabled || !app_state.backup_auth_valid)
+        {
+            return;
+        }
+
+        M5.Display.setTextColor(COLOR_LOGGED_TEMP, COLOR_BG);
+        M5.Display.setTextSize(1);
+        M5.Display.setCursor(190, LIVE_TIME_Y);
+        M5.Display.printf("U:%s P:%s", app_state.backup_auth_user, app_state.backup_auth_password);
     }
 
     void draw_timer_reset_button()
@@ -411,6 +428,11 @@ namespace
         const bool backup_server_changed =
             !live_values_cache_valid ||
             app_state.backup_server_enabled != live_last_backup_server_enabled;
+        const bool backup_auth_changed =
+            !live_values_cache_valid ||
+            app_state.backup_auth_valid != live_last_backup_auth_valid ||
+            strncmp(app_state.backup_auth_user, live_last_backup_auth_user, sizeof(live_last_backup_auth_user)) != 0 ||
+            strncmp(app_state.backup_auth_password, live_last_backup_auth_password, sizeof(live_last_backup_auth_password)) != 0;
 
         if (timer_changed)
         {
@@ -569,6 +591,11 @@ namespace
             draw_backup_button(app_state.backup_server_enabled);
         }
 
+        if (backup_server_changed || backup_auth_changed)
+        {
+            draw_backup_credentials(app_state);
+        }
+
         live_values_cache_valid = true;
         live_last_countdown_seconds = app_state.countdown_remaining_seconds;
         live_last_temp_valid = app_state.temperature_valid;
@@ -577,6 +604,11 @@ namespace
         live_last_logged_temperature = app_state.last_logged_temperature;
         live_last_below_threshold = is_below_threshold;
         live_last_backup_server_enabled = app_state.backup_server_enabled;
+        live_last_backup_auth_valid = app_state.backup_auth_valid;
+        strncpy(live_last_backup_auth_user, app_state.backup_auth_user, sizeof(live_last_backup_auth_user) - 1);
+        live_last_backup_auth_user[sizeof(live_last_backup_auth_user) - 1] = '\0';
+        strncpy(live_last_backup_auth_password, app_state.backup_auth_password, sizeof(live_last_backup_auth_password) - 1);
+        live_last_backup_auth_password[sizeof(live_last_backup_auth_password) - 1] = '\0';
     }
 
     void draw_settings_static()

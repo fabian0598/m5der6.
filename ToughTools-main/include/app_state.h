@@ -62,6 +62,9 @@ struct AppState
     bool settings_dirty = false;
     unsigned long settings_last_changed_ms = 0;
     bool backup_server_enabled = false;
+    bool backup_auth_valid = false;
+    char backup_auth_user[5] = "";
+    char backup_auth_password[5] = "";
 
     // Recent log lines for settings screen preview
     char recent_logs[MAX_RECENT_LOGS][MAX_LOG_LINE_LENGTH] = {};
