@@ -161,7 +161,7 @@ python3 tools/storage_format_sim.py --reset
 
 ### Mode D: WLAN backup from inserted SD
 
-If `wifi_secrets.h` contains valid WLAN credentials, the firmware can start a small HTTP backup server after WiFi connects. Tap the **WEB** button on the live screen to enable it for 10 minutes. Tap **WEB** again to switch it off earlier. Every enable creates a fresh 4-digit username and 4-digit password. The live screen shows the current device IP and codes, for example `192.168.x.x U1234 P5678`, and the serial monitor prints the device URL:
+If `wifi_secrets.h` contains valid WLAN credentials, the firmware can start a small HTTP backup server after WiFi connects. Tap the **WEB** button on the live screen to enable it for 10 minutes. Tap **WEB** again to switch it off earlier. Every enable creates a fresh 4-digit username and 4-digit password. The live screen shows `WEB WiFi... U1234 P5678` while waiting for WiFi and then the current device IP and codes, for example `192.168.x.x U1234 P5678`. The serial monitor prints the device URL too:
 
 ```text
 [Backup] HTTP server ready for 600 s: http://192.168.x.x:80/ user=1234 pass=5678

@@ -56,6 +56,10 @@ namespace
     constexpr int LIVE_TEMP_VALUE_Y = 162;
     constexpr int LIVE_TEMP_VALUE_W = CONTENT_X + CONTENT_W - LIVE_TEMP_VALUE_X - 12;
     constexpr int LIVE_TEMP_VALUE_H = 20;
+    constexpr int LIVE_BACKUP_STATUS_X = 24;
+    constexpr int LIVE_BACKUP_STATUS_Y = 132;
+    constexpr int LIVE_BACKUP_STATUS_W = 270;
+    constexpr int LIVE_BACKUP_STATUS_H = 18;
     constexpr int LIVE_TIME_Y = 214;
     constexpr int LIVE_WARNING_Y = 230;
     constexpr int LAST_LOG_BOX_X = 210;
@@ -270,16 +274,24 @@ namespace
 
     void draw_backup_credentials(const AppState &app_state)
     {
-        M5.Display.fillRect(142, LIVE_TIME_Y, 166, 14, COLOR_BG);
-        if (!app_state.backup_server_enabled || !app_state.backup_auth_valid || app_state.backup_server_ip[0] == '\0')
+        M5.Display.fillRect(LIVE_BACKUP_STATUS_X, LIVE_BACKUP_STATUS_Y, LIVE_BACKUP_STATUS_W, LIVE_BACKUP_STATUS_H, COLOR_PANEL);
+        if (!app_state.backup_server_enabled || !app_state.backup_auth_valid)
         {
             return;
         }
 
         M5.Display.setTextColor(COLOR_LOGGED_TEMP, COLOR_BG);
         M5.Display.setTextSize(1);
-        M5.Display.setCursor(144, LIVE_TIME_Y);
-        M5.Display.printf("%s U%s P%s", app_state.backup_server_ip, app_state.backup_auth_user, app_state.backup_auth_password);
+        M5.Display.setTextColor(COLOR_LOGGED_TEMP, COLOR_PANEL);
+        M5.Display.setCursor(LIVE_BACKUP_STATUS_X, LIVE_BACKUP_STATUS_Y + 4);
+        if (app_state.backup_server_ip[0] != '\0')
+        {
+            M5.Display.printf("%s U%s P%s", app_state.backup_server_ip, app_state.backup_auth_user, app_state.backup_auth_password);
+        }
+        else
+        {
+            M5.Display.printf("WEB WiFi... U%s P%s", app_state.backup_auth_user, app_state.backup_auth_password);
+        }
     }
 
     void draw_timer_reset_button()
