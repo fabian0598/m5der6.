@@ -253,9 +253,9 @@ namespace
     void draw_backup_info(const AppState &app_state)
     {
         const int info_x = CONTENT_X;
-        const int info_y = LIVE_WARNING_Y;
+        const int info_y = 194;
         const int info_w = CONTENT_W;
-        const int info_h = 18;
+        const int info_h = 14;
 
         if (app_state.backup_server_enabled && WiFi.status() == WL_CONNECTED)
         {
@@ -276,7 +276,7 @@ namespace
         else
         {
             // Clear area when server not enabled or not connected
-            M5.Display.fillRect(info_x, info_y, info_w, info_h, COLOR_BG);
+            M5.Display.fillRect(info_x, info_y, info_w, info_h, COLOR_PANEL);
         }
     }
 
@@ -563,6 +563,8 @@ namespace
         {
             draw_backup_button(app_state.backup_server_enabled);
         }
+
+        draw_backup_info(app_state);
 
         live_values_cache_valid = true;
         live_last_countdown_seconds = app_state.countdown_remaining_seconds;
