@@ -1,0 +1,10 @@
+timestamp,measurement_type,value,unit,session_id,source,global_id
+2026-06-03T02:45:36Z,temperature,20.4,°C,time_20260513_152145_003,device_001,10
+2026-06-03T02:46:36Z,temperature,20.4,°C,time_20260513_152145_003,device_001,11
+2026-06-03T02:47:36Z,temperature,20.4,°C,time_20260513_152145_003,device_001,12
+2026-06-03T02:48:36Z,temperature,20.4,°C,time_20260513_152145_003,device_001,13
+2026-06-03T02:49:36Z,temperature,20.4,°C,time_20260513_152145_003,device_001,14
+2026-06-03T02:50:36Z,temperature,20.3,°C,time_20260513_152145_003,device_001,15
+2026-06-03T02:51:36Z,temperature,20.3,°C,time_20260513_152145_003,device_001,16
+2026-06-03T02:52:36Z,temperature,20.3,°C,time_20260513_152145_003,device_001,17
+2026-06-03T02:53:36Z,temperature,20.4,°C,time_20260513_152145_003,device_001,18
