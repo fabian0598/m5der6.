@@ -3,6 +3,7 @@
 #include "spi_bus_lock.h"
 #include <Arduino.h>
 #include <M5Unified.h>
+#include <WiFi.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -249,7 +250,40 @@ namespace
         M5.Display.print("WEB");
     }
 
+    void draw_backup_info(const AppState &app_state)
+    {
+        const int info_x = CONTENT_X;
+        const int info_y = LIVE_WARNING_Y;
+        const int info_w = CONTENT_W;
+        const int info_h = 18;
+
+        if (app_state.backup_server_enabled && WiFi.status() == WL_CONNECTED)
+        {
+            const String ip = WiFi.localIP().toString();
+            M5.Display.fillRoundRect(info_x, info_y, info_w, info_h, 4, COLOR_PANEL);
+            M5.Display.setTextSize(1);
+            M5.Display.setTextColor(COLOR_TEXT_PRIMARY, COLOR_PANEL);
+            M5.Display.setCursor(info_x + 6, info_y + 4);
+            M5.Display.print("IP: ");
+            M5.Display.print(ip);
+            M5.Display.print("  ");
+            M5.Display.print("user:");
+            M5.Display.print(HTTP_BACKUP_AUTH_USER);
+            M5.Display.print(" ");
+            M5.Display.print("pw:");
+            M5.Display.print(HTTP_BACKUP_AUTH_PASSWORD);
+        }
+        else
+        {
+            // Clear area when server not enabled or not connected
+            M5.Display.fillRect(info_x, info_y, info_w, info_h, COLOR_BG);
+        }
+    }
+
     void draw_content_container()
+
+        // Show or clear backup server info when its state changes
+        draw_backup_info(app_state);
     {
         M5.Display.fillRoundRect(CONTENT_X, CONTENT_Y, CONTENT_W, CONTENT_H, 14, COLOR_PANEL);
         M5.Display.drawRoundRect(CONTENT_X, CONTENT_Y, CONTENT_W, CONTENT_H, 14, COLOR_PANEL_EDGE);
