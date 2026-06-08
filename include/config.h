@@ -55,6 +55,7 @@ constexpr int RS485_DE_PIN = 18; // Direction Enable pin for RS485 driver
 // Storage settings
 constexpr const char *TIME_LOG_FILE_PATH = "/time_log.csv";
 constexpr const char *EVENT_LOG_FILE_PATH = "/event_log.csv";
+constexpr const char *TIME_LOG_DIR_PATH = "/logs/time";
 constexpr const char *SETTINGS_FILE_PATH = "/settings.csv";
 constexpr const char *MEASUREMENTS_LOG_DIR_PATH = "/logs/measurements";
 constexpr const char *EVENT_LOG_DIR_PATH = "/logs/events";

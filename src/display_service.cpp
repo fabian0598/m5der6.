@@ -281,9 +281,6 @@ namespace
     }
 
     void draw_content_container()
-
-        // Show or clear backup server info when its state changes
-        draw_backup_info(app_state);
     {
         M5.Display.fillRoundRect(CONTENT_X, CONTENT_Y, CONTENT_W, CONTENT_H, 14, COLOR_PANEL);
         M5.Display.drawRoundRect(CONTENT_X, CONTENT_Y, CONTENT_W, CONTENT_H, 14, COLOR_PANEL_EDGE);
